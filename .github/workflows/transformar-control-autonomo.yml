@@ -12,884 +12,206 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Descargar proyecto
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Transformar proyecto
-        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import json
-          import re
-          import shutil
-
-          A = Path("app/src/main/assets")
-          W = Path("web")
-
-          def read(path):
-              return Path(path).read_text(encoding="utf-8")
-
-          def write(path, content):
-              p = Path(path)
-              p.parent.mkdir(parents=True, exist_ok=True)
-              p.write_text(content, encoding="utf-8")
-
-          def replace_function(text, name, new_code):
-              start = text.find("function " + name + "(")
-              if start < 0:
-                  raise RuntimeError("No se encontró la función " + name)
-
-              end = text.find("\nfunction ", start + 1)
-              if end < 0:
-                  raise RuntimeError("No se encontró el final de " + name)
-
-              return text[:start] + new_code.rstrip() + text[end:]
-
-          def delete_function(text, name):
-              start = text.find("function " + name + "(")
-              if start < 0:
-                  raise RuntimeError("No se encontró la función " + name)
-
-              end = text.find("\nfunction ", start + 1)
-              if end < 0:
-                  raise RuntimeError("No se encontró el final de " + name)
-
-              return text[:start] + text[end + 1:]
-
-          # -------------------------------------------------
-          # IDENTIDAD ANDROID
-          # -------------------------------------------------
-
-          gradle = read("app/build.gradle")
-
-          gradle = gradle.replace(
-              "namespace 'com.miscuentas.pro'",
-              "namespace 'com.obreriyo.controlautonomo'"
-          )
-
-          gradle = gradle.replace(
-              "applicationId 'com.miscuentas.pro'",
-              "applicationId 'com.obreriyo.controlautonomo'"
-          )
-
-          gradle = gradle.replace(
-              "versionCode 2",
-              "versionCode 1"
-          )
-
-          gradle = gradle.replace(
-              "versionName '2.0.0'",
-              "versionName '1.0.0'"
-          )
-
-          write("app/build.gradle", gradle)
-
-          manifest = read("app/src/main/AndroidManifest.xml")
-
-          manifest = manifest.replace(
-              'android:label="Mis Cuentas PRO"',
-              'android:label="Control Autónomo"'
-          )
-
-          write("app/src/main/AndroidManifest.xml", manifest)
-
-          settings = read("settings.gradle")
-
-          settings = settings.replace(
-              "rootProject.name = 'MisCuentasPRO'",
-              "rootProject.name = 'ControlAutonomo'"
-          )
-
-          write("settings.gradle", settings)
-
-          java_path = Path(
-              "app/src/main/java/com/miscuentas/pro/MainActivity.java"
-          )
-
-          java = java_path.read_text(encoding="utf-8")
-
-          java = java.replace(
-              "package com.miscuentas.pro;",
-              "package com.obreriyo.controlautonomo;"
-          )
-
-          java = java.replace(
-              "Mis Cuentas PRO",
-              "Control Autónomo"
-          )
-
-          java = java.replace(
-              "Mis_Cuentas_PRO",
-              "Control_Autonomo"
-          )
-
-          java = java.replace(
-              "mis_cuentas_pro_web_v1",
-              "control_autonomo_web_v1"
-          )
-
-          java = java.replace(
-              "mcp_pin_hash",
-              "ca_pin_hash"
-          )
-
-          write(java_path, java)
-
-          # -------------------------------------------------
-          # INDEX.HTML
-          # -------------------------------------------------
-
-          index_path = A / "index.html"
-          index = read(index_path)
-
-          replacements = [
-              ("Mis Cuentas PRO", "Control Autónomo"),
-              ("Mis_Cuentas_PRO", "Control_Autonomo"),
-              ("mis_cuentas_pro_web_v1", "control_autonomo_web_v1"),
-              ("mcp_pin_hash", "ca_pin_hash"),
-              ("MCPStore", "CAStore"),
-              ("{mcp:true", "{ca:true"),
-              (" · v21", " · v1"),
-              (
-                  "Resultado mensual con ingresos reales y contables, gastos y reserva estimada para Hacienda.",
-                  "Resultado mensual con ingresos, gastos y una reserva orientativa para IVA e IRPF."
-              ),
-              (
-                  "La caja se calcula con los ingresos contables y se acumula mes a mes. Registra aquí lo que ingresas en el banco.",
-                  "La caja se calcula con los ingresos registrados y se acumula mes a mes. Registra aquí lo que ingresas en el banco."
-              ),
-              (
-                  "Efectivo + IVA",
-                  "Total"
-              )
-          ]
-
-          for old, new in replacements:
-              index = index.replace(old, new)
-
-          index = index.replace(
-              "if(m.accounting==null)m.accounting=+m.total||0;",
-              ""
-          )
-
-          index = index.replace(
-              ",accounting:n",
-              ""
-          )
-
-          index = replace_function(
-              index,
-              "movementHTML",
-              '''function movementHTML(m){
- let cat=m.type==="Gasto"?categoryName(m.category):"";
- return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%</div><div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type=="Ingreso"?"green":"red"}">${m.type=="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`;
-}'''
-          )
-
-          index = delete_function(
-              index,
-              "editAccounting"
-          )
-
-          index = replace_function(
-              index,
-              "renderQuarters",
-              '''function renderQuarters(){
- let y=currentYear(),p=+data.settings.irpf||20,out="";
- for(let q=0;q<4;q++){
-  let arr=data.movements.filter(m=>+m.date.slice(0,4)==y&&Math.floor((+m.date.slice(5,7)-1)/3)==q);
-  let ib=0,eb=0,iv=0,ev=0,ret=0;
-
-  arr.forEach(m=>{
-   let v=vals(m);
-
-   if(m.type=="Ingreso"){
-    ib+=v.base;
-    iv+=v.vat;
-    ret+=v.base*(+m.withholding||0)/100;
-   }else{
-    if(m.irpfDeductible!==false)eb+=v.base;
-    if(m.vatDeductible!==false)ev+=v.vat;
-   }
-  });
-
-  let iva=iv-ev;
-  let irp=Math.max(0,(ib-eb)*p/100-ret);
-
-  out+=`<div class="movement"><div class="ico">${q+1}T</div><div><div class="mname">Trimestre ${q+1}</div><div class="sub">IVA estimado ${eur(iva)}</div></div><div class="amt">${eur(irp)}<div class="small">IRPF</div></div></div>`;
- }
-
- quarters.innerHTML=out;
-}'''
-          )
-
-          index = replace_function(
-              index,
-              "monthlyBenefit",
-              '''function monthlyBenefit(y,m){
- let arr=data.movements.filter(
-  x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m
- );
-
- let p=+data.settings.irpf||20;
-
- let income=0;
- let expenses=0;
- let ib=0;
- let eb=0;
- let iv=0;
- let ev=0;
- let ret=0;
-
- arr.forEach(x=>{
-  let v=vals(x);
-
-  if(x.type==="Ingreso"){
-   income+=+x.total||0;
-   ib+=v.base;
-   iv+=v.vat;
-   ret+=v.base*(+x.withholding||0)/100;
-  }else{
-   expenses+=+x.total||0;
-
-   if(x.irpfDeductible!==false)
-    eb+=v.base;
-
-   if(x.vatDeductible!==false)
-    ev+=v.vat;
-  }
- });
-
- let benefitGross=income-expenses;
- let ivaEstimate=Math.max(0,iv-ev);
- let irpfEstimate=Math.max(
-  0,
-  (ib-eb)*p/100-ret
- );
-
- let taxEstimate=
-  ivaEstimate+irpfEstimate;
-
- let benefitNet=
-  benefitGross-taxEstimate;
-
- return{
-  income,
-  expenses,
-  benefitGross,
-  ivaEstimate,
-  irpfEstimate,
-  taxEstimate,
-  benefitNet
- };
-}'''
-          )
-
-          index = replace_function(
-              index,
-              "renderBenefits",
-              '''function renderBenefits(){
- const box=document.getElementById("benefits");
- const sel=document.getElementById("benefitMonth");
-
- if(!box||!sel)return;
-
- let y=currentYear();
- let m=+sel.value||new Date().getMonth()+1;
- let b=monthlyBenefit(y,m);
-
- box.innerHTML=`
- <div style="border-top:1px solid var(--line);padding:14px 0">
-
- <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-
- <b>${MONTHS[m-1]} ${y}</b>
-
- <b class="green">${eur(b.benefitNet)}</b>
-
- </div>
-
- <div class="small" style="margin-top:8px;line-height:1.7">
-
- Ingresos:
- <b>${eur(b.income)}</b><br>
-
- Gastos:
- <b>${eur(b.expenses)}</b><br>
-
- Beneficio antes de impuestos:
- <b>${eur(b.benefitGross)}</b><br>
-
- Hacienda estimada:
- <b>${eur(b.taxEstimate)}</b>
-
- <span style="white-space:nowrap">
- (IVA ${eur(b.ivaEstimate)} +
- IRPF ${eur(b.irpfEstimate)})
- </span><br>
-
- <span style="font-size:14px;color:var(--text)">
- <b>Beneficio neto estimado:
- ${eur(b.benefitNet)}</b>
- </span>
-
- </div>
- </div>`;
-}'''
-          )
-
-          index = replace_function(
-              index,
-              "renderCash",
-              '''function renderCash(){
- let y=currentYear();
- let cash=0;
- let out="";
-
- for(let m=1;m<=12;m++){
-
-  let inc=data.movements
-   .filter(
-    x=>x.type==="Ingreso" &&
-    +x.date.slice(0,4)==y &&
-    +x.date.slice(5,7)==m
-   )
-   .reduce(
-    (a,x)=>a+(+x.total||0),
-    0
-   );
-
-  let dep=data.bank
-   .filter(
-    x=>+x.date.slice(0,4)==y &&
-    +x.date.slice(5,7)==m
-   )
-   .reduce(
-    (a,x)=>a+(+x.amount||0),
-    0
-   );
-
-  cash+=inc-dep;
-
-  out+=`
-   <div class="movement">
-
-   <div class="ico">${m}</div>
-
-   <div>
-    <div class="mname">
-     ${MONTHS[m-1]}
-    </div>
-
-    <div class="sub">
-     Ingresos ${eur(inc)}<br>
-     Banco ${eur(dep)}
-    </div>
-   </div>
-
-   <div class="amt">
-    ${eur(cash)}
-    <div class="small">
-     caja acumulada
-    </div>
-   </div>
-
-   </div>`;
- }
-
- cashSummary.innerHTML=out;
-
- bankHistory.innerHTML=
-  data.bank
-   .filter(
-    x=>+x.date.slice(0,4)==y
-   )
-   .sort(
-    (a,b)=>b.date.localeCompare(a.date)
-   )
-   .map(
-    x=>`
-    <div class="movement">
-
-    <div class="ico">€</div>
-
-    <div>
-
-     <div class="mname">
-      Ingreso al banco
-     </div>
-
-     <div class="sub">
-      ${x.date}
-     </div>
-
-    </div>
-
-    <div class="amt">
-
-     ${eur(x.amount)}
-
-     <div>
-      <button
-       class="tiny danger"
-       onclick="deleteBank(${x.id})">
-       Borrar
-      </button>
-     </div>
-
-    </div>
-    </div>`
-   )
-   .join("")
-   ||
-   '<div class="panel small">Sin ingresos al banco.</div>';
-}'''
-          )
-
-          index = replace_function(
-              index,
-              "monthlyIncomeRows",
-              '''function monthlyIncomeRows(){
- let y=currentYear();
- let m=+document.getElementById("reportMonth").value;
- let days={};
-
- data.movements
-  .filter(
-   x=>x.type==="Ingreso" &&
-   +x.date.slice(0,4)==y &&
-   +x.date.slice(5,7)==m &&
-   !data.nonworking.includes(x.date)
-  )
-  .forEach(x=>{
-
-   let v=vals(x);
-
-   let d=days[x.date]||
-    (days[x.date]={
-     date:x.date,
-     total:0,
-     base:0
-    });
-
-   d.total+=v.total;
-   d.base+=v.base;
-  });
-
- return Object.values(days)
-  .sort(
-   (a,b)=>a.date.localeCompare(b.date)
-  );
-}'''
-          )
-
-          index = re.sub(
-              r'const info=\{title:"Control Autónomo".*?;\n',
-              'const info={title:"Control Autónomo",text:"Control Autónomo - ingresos, gastos, IVA, IRPF, informes y caja/banco.",url:location.origin+"/"};\n',
-              index
-          )
-
-          if re.search(
-              r"contabl",
-              index,
-              re.IGNORECASE
-          ):
-              raise RuntimeError(
-                  "Queda una referencia contable en index.html"
-              )
-
-          if "accounting" in index:
-              raise RuntimeError(
-                  "Queda la antigua lógica accounting en index.html"
-              )
-
-          write(index_path, index)
-
-          # -------------------------------------------------
-          # APP.JS
-          # -------------------------------------------------
-
-          app_path=A/"app.js"
-          app=read(app_path)
-
-          replacements=[
-              ("Mis Cuentas PRO","Control Autónomo"),
-              ("Mis_Cuentas_PRO","Control_Autonomo"),
-              ("mis_cuentas_pro_web_v1","control_autonomo_web_v1"),
-              ("mcp_pin_hash","ca_pin_hash"),
-              ("MCPStore","CAStore"),
-              ("{mcp:true","{ca:true"),
-              ("Efectivo + IVA","Total")
-          ]
-
-          for old,new in replacements:
-              app=app.replace(old,new)
-
-          app=app.replace(
-              "if(m.accounting==null)m.accounting=+m.total||0;",
-              ""
-          )
-
-          app=app.replace(
-              ",accounting:n",
-              ""
-          )
-
-          app=replace_function(
-              app,
-              "movementHTML",
-              '''function movementHTML(m){
- let cat=m.type==="Gasto"?categoryName(m.category):"";
-
- return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${escapeHTML(m.concept||m.type)}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%</div><div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type=="Ingreso"?"green":"red"}">${m.type=="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`;
-}'''
-          )
-
-          app=delete_function(
-              app,
-              "editAccounting"
-          )
-
-          app=replace_function(
-              app,
-              "renderQuarters",
-              '''function renderQuarters(){
- let y=currentYear(),p=+data.settings.irpf||20,out="";
-
- for(let q=0;q<4;q++){
-
-  let arr=data.movements.filter(
-   m=>+m.date.slice(0,4)==y &&
-   Math.floor(
-    (+m.date.slice(5,7)-1)/3
-   )==q
-  );
-
-  let ib=0,eb=0,iv=0,ev=0,ret=0;
-
-  arr.forEach(m=>{
-
-   let v=vals(m);
-
-   if(m.type=="Ingreso"){
-    ib+=v.base;
-    iv+=v.vat;
-    ret+=v.base*(+m.withholding||0)/100;
-   }else{
-    if(m.irpfDeductible!==false)
-     eb+=v.base;
-
-    if(m.vatDeductible!==false)
-     ev+=v.vat;
-   }
-
-  });
-
-  let iva=iv-ev;
-
-  let irp=Math.max(
-   0,
-   (ib-eb)*p/100-ret
-  );
-
-  out+=`<div class="movement"><div class="ico">${q+1}T</div><div><div class="mname">Trimestre ${q+1}</div><div class="sub">IVA estimado ${eur(iva)}</div></div><div class="amt">${eur(irp)}<div class="small">IRPF</div></div></div>`;
- }
-
- quarters.innerHTML=out;
-}'''
-          )
-
-          app=replace_function(
-              app,
-              "renderCash",
-              '''function renderCash(){
- let y=currentYear(),cash=0,out="";
-
- for(let m=1;m<=12;m++){
-
-  let inc=data.movements
-   .filter(
-    x=>x.type==="Ingreso" &&
-    +x.date.slice(0,4)==y &&
-    +x.date.slice(5,7)==m
-   )
-   .reduce(
-    (a,x)=>a+(+x.total||0),
-    0
-   );
-
-  let dep=data.bank
-   .filter(
-    x=>+x.date.slice(0,4)==y &&
-    +x.date.slice(5,7)==m
-   )
-   .reduce(
-    (a,x)=>a+(+x.amount||0),
-    0
-   );
-
-  cash+=inc-dep;
-
-  out+=`<div class="movement"><div class="ico">${m}</div><div><div class="mname">${MONTHS[m-1]}</div><div class="sub">Ingresos ${eur(inc)}<br>Banco ${eur(dep)}</div></div><div class="amt">${eur(cash)}<div class="small">caja acumulada</div></div></div>`;
- }
-
- cashSummary.innerHTML=out;
-
- bankHistory.innerHTML=
-  data.bank
-   .filter(
-    x=>+x.date.slice(0,4)==y
-   )
-   .sort(
-    (a,b)=>b.date.localeCompare(a.date)
-   )
-   .map(
-    x=>`<div class="movement"><div class="ico">€</div><div><div class="mname">Ingreso al banco</div><div class="sub">${x.date}</div></div><div class="amt">${eur(x.amount)}<div><button class="tiny danger" onclick="deleteBank(${x.id})">Borrar</button></div></div></div>`
-   )
-   .join("")
-   ||
-   '<div class="panel small">Sin ingresos al banco.</div>';
-}'''
-          )
-
-          app=replace_function(
-              app,
-              "monthlyIncomeRows",
-              '''function monthlyIncomeRows(){
- let y=currentYear();
- let m=+document.getElementById("reportMonth").value;
- let days={};
-
- data.movements
-  .filter(
-   x=>x.type==="Ingreso" &&
-   +x.date.slice(0,4)==y &&
-   +x.date.slice(5,7)==m &&
-   !data.nonworking.includes(x.date)
-  )
-  .forEach(x=>{
-
-   let v=vals(x);
-
-   let d=days[x.date]||
-    (days[x.date]={
-     date:x.date,
-     total:0,
-     base:0
-    });
-
-   d.total+=v.total;
-   d.base+=v.base;
-  });
-
- return Object.values(days)
-  .sort(
-   (a,b)=>a.date.localeCompare(b.date)
-  );
-}'''
-          )
-
-          app=re.sub(
-              r'const info=\{title:"Control Autónomo".*?;\n',
-              'const info={title:"Control Autónomo",text:"Control Autónomo - ingresos, gastos, IVA, IRPF, informes y caja/banco.",url:location.origin+"/"};\n',
-              app
-          )
-
-          if re.search(
-              r"contabl",
-              app,
-              re.IGNORECASE
-          ):
-              raise RuntimeError(
-                  "Queda una referencia contable en app.js"
-              )
-
-          if "accounting" in app:
-              raise RuntimeError(
-                  "Queda la antigua lógica accounting en app.js"
-              )
-
-          write(app_path,app)
-
-          # -------------------------------------------------
-          # ALMACENAMIENTO LOCAL INDEPENDIENTE
-          # -------------------------------------------------
-
-          store = '''/* Persistencia local de Control Autónomo */
-(function(root){
- 'use strict';
-
- const LEGACY='control_autonomo_web_v1';
-
- const empty=()=>({
-  movements:[],
-  bank:[],
-  settings:{
-   owner:'',
-   irpf:20
-  },
-  nonworking:[],
-  gestIncome:{}
- });
-
- function validate(value){
-
-  const d=JSON.parse(
-   JSON.stringify(value)
-  );
-
-  if(
-   !d ||
-   !Array.isArray(d.movements) ||
-   !Array.isArray(d.bank) ||
-   !d.settings ||
-   typeof d.settings.owner!=='string' ||
-   !Number.isFinite(d.settings.irpf)
-  )
-   throw Error('Copia no válida');
-
-  d.nonworking=d.nonworking||[];
-  d.gestIncome=d.gestIncome||{};
-
-  const date=x=>
-   typeof x==='string' &&
-   /^\\d{4}-\\d{2}-\\d{2}$/.test(x);
-
-  if(
-   !Array.isArray(d.nonworking) ||
-   !d.nonworking.every(date) ||
-   typeof d.gestIncome!=='object' ||
-   Array.isArray(d.gestIncome)
-  )
-   throw Error('Fechas no válidas');
-
-  for(const m of d.movements){
-
-   if(
-    !Number.isSafeInteger(m.id) ||
-    !date(m.date) ||
-    !['Ingreso','Gasto'].includes(m.type) ||
-    typeof m.concept!=='string' ||
-    !Number.isFinite(m.total) ||
-    !Number.isFinite(m.vat) ||
-    m.vat===-100
-   )
-    throw Error('Movimiento no válido');
-
-   if(
-    m.withholding!=null &&
-    !Number.isFinite(m.withholding)
-   )
-    throw Error('Importe no válido');
-  }
-
-  for(const b of d.bank){
-
-   if(
-    !Number.isSafeInteger(b.id) ||
-    !date(b.date) ||
-    !Number.isFinite(b.amount)
-   )
-    throw Error('Banco no válido');
-  }
-
-  return d;
- }
-
- function key(uid){
-  return uid
-   ?'ca_v1_user_'+uid
-   :'ca_v1_guest';
- }
-
- function read(uid){
-
-  const s=localStorage.getItem(
-   key(uid)
-  );
-
-  if(s){
-   const e=JSON.parse(s);
-   e.data=validate(e.data);
-   return e;
-  }
-
-  const old=
-   !uid &&
-   localStorage.getItem(LEGACY);
-
-  return{
-   data:old
-    ?validate(JSON.parse(old))
-    :empty(),
-   revision:0,
-   dirty:false,
-   commitId:null
-  };
- }
-
- const api={
-
-  empty,
-  validate,
-  key,
-  read,
-  uid:null,
-  envelope:null,
-
-  open(uid){
-
-   const e=read(uid);
-
-   this.uid=uid;
-   this.envelope=e;
-
-   return structuredClone(
-    e.data
-   );
-  },
-
-  persist(e){
-
-   localStorage.setItem(
-    key(this.uid),
-    JSON.stringify(e)
-   );
-
-   this.envelope=e;
-  },
-
-  save(d){
-
-   const e={
-    ...this.envelope,
-    data:validate(d),
-    dirty:true,
-    commitId:crypto.randomUUID()
-   };
-
-   this.persist(e);
-  },
-
-  backup(d,label){
-
-   const k=
-    'ca_v1_backup_' +
-    (this.uid||'guest') +
-    '_' +
-    Date.now() +
-    '_' +
-    label;
-
-   localStorage.setItem(
-    k,
-    JSON.stringify(d)
-   );
-
-   return k;
-  }
-
- };
-
- 
+          import re,json,shutil
+
+          A=Path("app/src/main/assets")
+          W=Path("web")
+
+          def R(p): return Path(p).read_text(encoding="utf-8")
+          def S(p,t): Path(p).write_text(t,encoding="utf-8")
+
+          def FN(t,n,c):
+              a=t.find("function "+n+"(")
+              b=t.find("\nfunction ",a+1)
+              if a<0 or b<0: raise Exception("No encuentro "+n)
+              return t[:a]+c+t[b:]
+
+          # Android
+          p=Path("app/build.gradle");t=R(p)
+          t=t.replace("com.miscuentas.pro","com.obreriyo.controlautonomo")
+          t=t.replace("versionCode 2","versionCode 1")
+          t=t.replace("versionName '2.0.0'","versionName '1.0.0'")
+          S(p,t)
+
+          S("settings.gradle",R("settings.gradle").replace("MisCuentasPRO","ControlAutonomo"))
+
+          p=Path("app/src/main/AndroidManifest.xml")
+          S(p,R(p).replace("Mis Cuentas PRO","Control Autónomo"))
+
+          p=Path("app/src/main/java/com/miscuentas/pro/MainActivity.java")
+          t=R(p).replace("package com.miscuentas.pro;","package com.obreriyo.controlautonomo;")
+          t=t.replace("Mis Cuentas PRO","Control Autónomo")
+          t=t.replace("Mis_Cuentas_PRO","Control_Autonomo")
+          t=t.replace("mis_cuentas_pro_web_v1","control_autonomo_web_v1")
+          t=t.replace("mcp_pin_hash","ca_pin_hash")
+          S(p,t)
+
+          # Aplicación principal
+          p=A/"index.html"
+          t=R(p)
+
+          for a,b in [
+            ("Mis Cuentas PRO","Control Autónomo"),
+            ("Mis_Cuentas_PRO","Control_Autonomo"),
+            ("mis_cuentas_pro_web_v1","control_autonomo_web_v1"),
+            ("mcp_pin_hash","ca_pin_hash"),
+            ("MCPStore","CAStore"),
+            ("{mcp:true","{ca:true"),
+            (" · v21"," · v1"),
+            ("Resultado mensual con ingresos reales y contables, gastos y reserva estimada para Hacienda.","Resultado mensual con ingresos, gastos y reserva estimada para Hacienda."),
+            ("La caja se calcula con los ingresos contables y se acumula mes a mes. Registra aquí lo que ingresas en el banco.","La caja se calcula con los ingresos registrados y se acumula mes a mes. Registra aquí lo que ingresas en el banco.")
+          ]: t=t.replace(a,b)
+
+          t=t.replace("if(m.accounting==null)m.accounting=+m.total||0;","")
+          t=t.replace(",accounting:n","")
+
+          t=FN(t,"movementHTML",'''function movementHTML(m){
+           let cat=m.type==="Gasto"?categoryName(m.category):"";
+           return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%</div><div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type==="Ingreso"?"green":"red"}">${m.type==="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
+          ''')
+
+          a=t.find("function editAccounting(")
+          b=t.find("\nfunction ",a+1)
+          if a>=0 and b>=0:t=t[:a]+t[b+1:]
+
+          t=FN(t,"renderQuarters",'''function renderQuarters(){
+           let y=currentYear(),p=+data.settings.irpf||20,out="";
+           for(let q=0;q<4;q++){
+            let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&Math.floor((+x.date.slice(5,7)-1)/3)==q),ib=0,eb=0,iv=0,ev=0,ret=0;
+            a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
+            let iva=iv-ev,irpf=Math.max(0,(ib-eb)*p/100-ret);
+            out+=`<div class="movement"><div class="ico">${q+1}T</div><div><div class="mname">Trimestre ${q+1}</div><div class="sub">IVA estimado ${eur(iva)}</div></div><div class="amt">${eur(irpf)}<div class="small">IRPF</div></div></div>`}
+           quarters.innerHTML=out}
+          ''')
+
+          t=FN(t,"monthlyBenefit",'''function monthlyBenefit(y,m){
+           let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m),p=+data.settings.irpf||20,inc=0,gas=0,ib=0,eb=0,iv=0,ev=0,ret=0;
+           a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){inc+=+x.total||0;ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{gas+=+x.total||0;if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
+           let bruto=inc-gas,iva=Math.max(0,iv-ev),irpf=Math.max(0,(ib-eb)*p/100-ret),hacienda=iva+irpf;
+           return{inc,gas,bruto,iva,irpf,hacienda,neto:bruto-hacienda}}
+          ''')
+
+          t=FN(t,"renderBenefits",'''function renderBenefits(){
+           let b=monthlyBenefit(currentYear(),+benefitMonth.value),m=+benefitMonth.value;
+           benefits.innerHTML=`<div style="border-top:1px solid var(--line);padding:14px 0"><b>${MONTHS[m-1]} ${currentYear()}</b><div class="small" style="margin-top:8px;line-height:1.7">Ingresos: <b>${eur(b.inc)}</b><br>Gastos: <b>${eur(b.gas)}</b><br>Beneficio antes de impuestos: <b>${eur(b.bruto)}</b><br>Hacienda estimada: <b>${eur(b.hacienda)}</b> (IVA ${eur(b.iva)} + IRPF ${eur(b.irpf)})<br><b>Beneficio neto estimado: ${eur(b.neto)}</b></div></div>`}
+          ''')
+
+          t=FN(t,"renderCash",'''function renderCash(){
+           let y=currentYear(),cash=0,out="";
+           for(let m=1;m<=12;m++){
+            let inc=data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.total||0),0);
+            let dep=data.bank.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.amount||0),0);
+            cash+=inc-dep;
+            out+=`<div class="movement"><div class="ico">${m}</div><div><div class="mname">${MONTHS[m-1]}</div><div class="sub">Ingresos ${eur(inc)}<br>Banco ${eur(dep)}</div></div><div class="amt">${eur(cash)}<div class="small">caja acumulada</div></div></div>`}
+           cashSummary.innerHTML=out;
+           bankHistory.innerHTML=data.bank.filter(x=>+x.date.slice(0,4)==y).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="movement"><div class="ico">€</div><div><div class="mname">Ingreso al banco</div><div class="sub">${x.date}</div></div><div class="amt">${eur(x.amount)}<div><button class="tiny danger" onclick="deleteBank(${x.id})">Borrar</button></div></div></div>`).join("")||'<div class="panel small">Sin ingresos al banco.</div>'}
+          ''')
+
+          t=FN(t,"monthlyIncomeRows",'''function monthlyIncomeRows(){
+           let y=currentYear(),m=+reportMonth.value,d={};
+           data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m&&!data.nonworking.includes(x.date)).forEach(x=>{let v=vals(x),r=d[x.date]||(d[x.date]={date:x.date,total:0,base:0});r.total+=v.total;r.base+=v.base});
+           return Object.values(d).sort((a,b)=>a.date.localeCompare(b.date))}
+          ''')
+
+          t=t.replace('url:window.AndroidPrint?"https://mis-cuentas-pro-b565d.web.app/":location.origin+"/"','url:location.origin+"/"')
+          t=t.replace('<script src="vendor/firebase-app-compat.js"></script><script src="vendor/firebase-auth-compat.js"></script><script src="vendor/firebase-firestore-compat.js"></script><script src="cloud.js"></script>','<script src="cloud.js"></script>')
+
+          if re.search(r"contabl|accounting",t,re.I):
+              raise Exception("Todavía queda lógica contable")
+
+          S(p,t)
+
+          # app.js = misma lógica del index
+          bloque=re.findall(r"<script>(.*?)</script>",t,re.S)[0]
+          S(A/"app.js",bloque.strip()+"\n")
+
+          # Almacenamiento independiente
+          p=A/"store.js";s=R(p)
+          s=s.replace("MCPStore","CAStore")
+          s=s.replace("mis_cuentas_pro_web_v1","control_autonomo_web_v1")
+          s=s.replace("mcp_v2_","ca_v1_")
+          s=s.replace("for(const k of ['accounting','withholding'])if(m[k]!=null&&!Number.isFinite(m[k]))throw Error('Importe no válido');","if(m.withholding!=null&&!Number.isFinite(m.withholding))throw Error('Importe no válido');")
+          S(p,s)
+
+          # Firebase personal desactivado
+          S(A/"cloud.js",'''const $=id=>document.getElementById(id);
+          function cloudStatus(t){const e=$(\"syncStatus\");if(e)e.textContent=t}
+          function scheduleSync(){cloudStatus(\"Guardado solo en este dispositivo\")}
+          function pendiente(){cloudStatus(\"Guardado solo en este dispositivo\");const e=$(\"authMessage\");if(e)e.textContent=\"La sincronización se configurará con un Firebase independiente antes de publicar.\"}
+          function accountAction(){pendiente()} function syncCloud(){pendiente()}
+          function resolveConflict(){pendiente()} function importGuest(){pendiente()}
+          async function exportRecovery(){alert(\"Las copias permanecen en este dispositivo.\")}
+          function initCloud(){if($(\"authForm\"))$(\"authForm\").hidden=true;if($(\"signedIn\"))$(\"signedIn\").hidden=true;pendiente()} initCloud();
+          ''')
+
+          p=A/"boot.js";s=R(p)
+          S(p,s.replace("Mis Cuentas PRO","Control Autónomo").replace("mcp_pin_hash","ca_pin_hash").replace("mcp-single-editor","control-autonomo-single-editor"))
+
+          p=A/"sw.js";s=R(p)
+          S(p,s.replace("mis-cuentas-pro-v2.0.0","control-autonomo-v1.0.0").replace("k.startsWith('mis-cuentas-pro-')","k.startsWith('control-autonomo-')"))
+
+          p=A/"manifest.webmanifest";m=json.loads(R(p))
+          m["name"]="Control Autónomo";m["short_name"]="Control Autónomo"
+          S(p,json.dumps(m,ensure_ascii=False,indent=2)+"\n")
+
+          p=Path("firebase.json")
+          S(p,R(p).replace("frame-src https://mis-cuentas-pro-b565d.firebaseapp.com","frame-src 'none'"))
+
+          # Android y Web siempre iguales
+          for n in ["index.html","app.js","store.js","cloud.js","boot.js","sw.js","manifest.webmanifest"]:
+              shutil.copy2(A/n,W/n)
+
+          # Documentación y validación
+          S("README.txt","Control Autónomo 1.0.0\nAplicación independiente para autónomos.\n")
+          S("LEEME.md","# Control Autónomo\n\nProyecto independiente. La nube se conectará a un Firebase propio antes de publicar.\n")
+          S("VALIDACION.md","# Control Autónomo\n\nIdentidad, datos y cálculos independientes de Mis Cuentas PRO.\n")
+
+          S("tests/verify.cjs",'''const fs=require("fs"),path=require("path"),vm=require("vm"),assert=require("assert/strict");
+          const root=path.resolve(__dirname,".."),a=path.join(root,"app/src/main/assets"),R=p=>fs.readFileSync(path.join(a,p),"utf8");
+          for(const n of ["app.js","store.js","cloud.js","boot.js","sw.js"])new vm.Script(R(n));
+          for(const n of fs.readdirSync(a,{recursive:true}).filter(n=>fs.statSync(path.join(a,n)).isFile()))assert.deepEqual(fs.readFileSync(path.join(a,n)),fs.readFileSync(path.join(root,"web",n)));
+          assert.match(R("index.html"),/Control Autónomo/);
+          assert.doesNotMatch(R("index.html"),/contabl|accounting/i);
+          assert.doesNotMatch(R("cloud.js"),/mis-cuentas-pro-b565d/);
+          assert.match(fs.readFileSync(path.join(root,"app/build.gradle"),"utf8"),/com\\.obreriyo\\.controlautonomo/);
+          console.log("OK Control Autónomo");
+          ''')
+
+          p=Path(".github/workflows/android.yml");s=R(p)
+          S(p,s.replace("Validar y compilar Mis Cuentas PRO","Validar y compilar Control Autónomo").replace("Mis-Cuentas-PRO-APK","Control-Autonomo-APK"))
+
+          print("Transformación terminada")
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validar
+        run: node tests/verify.cjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compilar
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Guardar cambios
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "Transformar proyecto en Control Autónomo"
+          git push
