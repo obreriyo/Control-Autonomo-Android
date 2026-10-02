@@ -66,7 +66,8 @@ jobs:
             (" · v21"," · v1"),
             ("Resultado mensual con ingresos reales y contables, gastos y reserva estimada para Hacienda.","Resultado mensual con ingresos, gastos y reserva estimada para Hacienda."),
             ("La caja se calcula con los ingresos contables y se acumula mes a mes. Registra aquí lo que ingresas en el banco.","La caja se calcula con los ingresos registrados y se acumula mes a mes. Registra aquí lo que ingresas en el banco.")
-          ]: t=t.replace(a,b)
+          ]:
+              t=t.replace(a,b)
 
           t=t.replace("if(m.accounting==null)m.accounting=+m.total||0;","")
           t=t.replace(",accounting:n","")
@@ -78,7 +79,8 @@ jobs:
 
           a=t.find("function editAccounting(")
           b=t.find("\nfunction ",a+1)
-          if a>=0 and b>=0:t=t[:a]+t[b+1:]
+          if a>=0 and b>=0:
+              t=t[:a]+t[b+1:]
 
           t=FN(t,"renderQuarters",'''function renderQuarters(){
            let y=currentYear(),p=+data.settings.irpf||20,out="";
@@ -120,7 +122,11 @@ jobs:
           ''')
 
           t=t.replace('url:window.AndroidPrint?"https://mis-cuentas-pro-b565d.web.app/":location.origin+"/"','url:location.origin+"/"')
-          t=t.replace('<script src="vendor/firebase-app-compat.js"></script><script src="vendor/firebase-auth-compat.js"></script><script src="vendor/firebase-firestore-compat.js"></script><script src="cloud.js"></script>','<script src="cloud.js"></script>')
+
+          t=t.replace(
+            '<script src="vendor/firebase-app-compat.js"></script><script src="vendor/firebase-auth-compat.js"></script><script src="vendor/firebase-firestore-compat.js"></script><script src="cloud.js"></script>',
+            '<script src="cloud.js"></script>'
+          )
 
           if re.search(r"contabl|accounting",t,re.I):
               raise Exception("Todavía queda lógica contable")
@@ -132,86 +138,57 @@ jobs:
           S(A/"app.js",bloque.strip()+"\n")
 
           # Almacenamiento independiente
-          p=A/"store.js";s=R(p)
+          p=A/"store.js"
+          s=R(p)
           s=s.replace("MCPStore","CAStore")
           s=s.replace("mis_cuentas_pro_web_v1","control_autonomo_web_v1")
           s=s.replace("mcp_v2_","ca_v1_")
-          s=s.replace("for(const k of ['accounting','withholding'])if(m[k]!=null&&!Number.isFinite(m[k]))throw Error('Importe no válido');","if(m.withholding!=null&&!Number.isFinite(m.withholding))throw Error('Importe no válido');")
+          s=s.replace(
+            "for(const k of ['accounting','withholding'])if(m[k]!=null&&!Number.isFinite(m[k]))throw Error('Importe no válido');",
+            "if(m.withholding!=null&&!Number.isFinite(m.withholding))throw Error('Importe no válido');"
+          )
           S(p,s)
 
           # Firebase personal desactivado
           S(A/"cloud.js",'''const $=id=>document.getElementById(id);
-          function cloudStatus(t){const e=$(\"syncStatus\");if(e)e.textContent=t}
-          function scheduleSync(){cloudStatus(\"Guardado solo en este dispositivo\")}
-          function pendiente(){cloudStatus(\"Guardado solo en este dispositivo\");const e=$(\"authMessage\");if(e)e.textContent=\"La sincronización se configurará con un Firebase independiente antes de publicar.\"}
-          function accountAction(){pendiente()} function syncCloud(){pendiente()}
-          function resolveConflict(){pendiente()} function importGuest(){pendiente()}
-          async function exportRecovery(){alert(\"Las copias permanecen en este dispositivo.\")}
-          function initCloud(){if($(\"authForm\"))$(\"authForm\").hidden=true;if($(\"signedIn\"))$(\"signedIn\").hidden=true;pendiente()} initCloud();
+          function cloudStatus(t){const e=$("syncStatus");if(e)e.textContent=t}
+          function scheduleSync(){cloudStatus("Guardado solo en este dispositivo")}
+          function pendiente(){cloudStatus("Guardado solo en este dispositivo");const e=$("authMessage");if(e)e.textContent="La sincronización se configurará con un Firebase independiente antes de publicar."}
+          function accountAction(){pendiente()}
+          function syncCloud(){pendiente()}
+          function resolveConflict(){pendiente()}
+          function importGuest(){pendiente()}
+          async function exportRecovery(){alert("Las copias permanecen en este dispositivo.")}
+          function initCloud(){if($("authForm"))$("authForm").hidden=true;if($("signedIn"))$("signedIn").hidden=true;pendiente()}
+          initCloud();
           ''')
 
-          p=A/"boot.js";s=R(p)
+          p=A/"boot.js"
+          s=R(p)
           S(p,s.replace("Mis Cuentas PRO","Control Autónomo").replace("mcp_pin_hash","ca_pin_hash").replace("mcp-single-editor","control-autonomo-single-editor"))
 
-          p=A/"sw.js";s=R(p)
+          p=A/"sw.js"
+          s=R(p)
           S(p,s.replace("mis-cuentas-pro-v2.0.0","control-autonomo-v1.0.0").replace("k.startsWith('mis-cuentas-pro-')","k.startsWith('control-autonomo-')"))
 
-          p=A/"manifest.webmanifest";m=json.loads(R(p))
-          m["name"]="Control Autónomo";m["short_name"]="Control Autónomo"
+          p=A/"manifest.webmanifest"
+          m=json.loads(R(p))
+          m["name"]="Control Autónomo"
+          m["short_name"]="Control Autónomo"
           S(p,json.dumps(m,ensure_ascii=False,indent=2)+"\n")
 
           p=Path("firebase.json")
           S(p,R(p).replace("frame-src https://mis-cuentas-pro-b565d.firebaseapp.com","frame-src 'none'"))
 
-          # Android y Web siempre iguales
+          # Android y Web iguales
           for n in ["index.html","app.js","store.js","cloud.js","boot.js","sw.js","manifest.webmanifest"]:
               shutil.copy2(A/n,W/n)
 
-          # Documentación y validación
+          # Documentación
           S("README.txt","Control Autónomo 1.0.0\nAplicación independiente para autónomos.\n")
           S("LEEME.md","# Control Autónomo\n\nProyecto independiente. La nube se conectará a un Firebase propio antes de publicar.\n")
           S("VALIDACION.md","# Control Autónomo\n\nIdentidad, datos y cálculos independientes de Mis Cuentas PRO.\n")
 
+          # Validación
           S("tests/verify.cjs",'''const fs=require("fs"),path=require("path"),vm=require("vm"),assert=require("assert/strict");
-          const root=path.resolve(__dirname,".."),a=path.join(root,"app/src/main/assets"),R=p=>fs.readFileSync(path.join(a,p),"utf8");
-          for(const n of ["app.js","store.js","cloud.js","boot.js","sw.js"])new vm.Script(R(n));
-          for(const n of fs.readdirSync(a,{recursive:true}).filter(n=>fs.statSync(path.join(a,n)).isFile()))assert.deepEqual(fs.readFileSync(path.join(a,n)),fs.readFileSync(path.join(root,"web",n)));
-          assert.match(R("index.html"),/Control Autónomo/);
-          assert.doesNotMatch(R("index.html"),/contabl|accounting/i);
-          assert.doesNotMatch(R("cloud.js"),/mis-cuentas-pro-b565d/);
-          assert.match(fs.readFileSync(path.join(root,"app/build.gradle"),"utf8"),/com\\.obreriyo\\.controlautonomo/);
-          console.log("OK Control Autónomo");
-          ''')
-
-          p=Path(".github/workflows/android.yml");s=R(p)
-          S(p,s.replace("Validar y compilar Mis Cuentas PRO","Validar y compilar Control Autónomo").replace("Mis-Cuentas-PRO-APK","Control-Autonomo-APK"))
-
-          print("Transformación terminada")
-          PY
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Validar
-        run: node tests/verify.cjs
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Compilar
-        run: gradle :app:assembleDebug --stacktrace
-
-      - name: Guardar cambios
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -u
-          git commit -m "Transformar proyecto en Control Autónomo"
-          git push
+          const root=path.resolve(__dirname,".."),a=path.join(root,"app/src/main/assets"),R=p=>fs.readFile
