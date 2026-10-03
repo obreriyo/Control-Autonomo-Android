@@ -185,7 +185,7 @@ function printMonthlyReport(){
  },150);
 }
 function saveSettings(){data.settings.owner=owner.value.trim();data.settings.irpf=+irpf.value||20;save();alert("Guardado")}
-async function exportData(){try{const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});await downloadFileCompat(blob,"mis_cuentas_pro_copia.json")}catch(e){console.error(e);alert("No se pudo exportar la copia en este dispositivo.")}}
+async function exportData(){try{const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});await downloadFileCompat(blob,"control_autonomo_copia.json")}catch(e){console.error(e);alert("No se pudo exportar la copia en este dispositivo.")}}
 function importData(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{const imported=CAStore.validate(JSON.parse(r.result));if(!confirm("¿Sustituir los datos actuales por esta copia? Se conservará una copia de recuperación."))return;CAStore.backup(data,"antes_importar");data=imported;save();owner.value=data.settings?.owner||"";irpf.value=data.settings?.irpf??20;alert("Copia importada")}catch{alert("Archivo no válido")}};r.readAsText(f)}
 init();
 async function hashPin(v){let b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
