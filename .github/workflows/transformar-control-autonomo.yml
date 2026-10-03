@@ -12,183 +12,70 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Transformar proyecto
+      - name: Ejecutar transformación validada
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re,json,shutil
+          git show 6e8ed285df0d46b8b44fc4379140d5846850d44e:.github/workflows/transformar-control-autonomo.yml > /tmp/workflow-validado.yml
 
-          A=Path("app/src/main/assets")
-          W=Path("web")
+          awk '
+            /python3 - <</ {copiar=1; next}
+            copiar && /^          PY$/ {exit}
+            copiar {
+              sub(/^          /,"")
+              print
+            }
+          ' /tmp/workflow-validado.yml > /tmp/transform.py
 
-          def R(p): return Path(p).read_text(encoding="utf-8")
-          def S(p,t): Path(p).write_text(t,encoding="utf-8")
+          test -s /tmp/transform.py
+          python3 /tmp/transform.py
 
-          def FN(t,n,c):
-              a=t.find("function "+n+"(")
-              b=t.find("\nfunction ",a+1)
-              if a<0 or b<0: raise Exception("No encuentro "+n)
-              return t[:a]+c+t[b:]
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-          # Android
-          p=Path("app/build.gradle");t=R(p)
-          t=t.replace("com.miscuentas.pro","com.obreriyo.controlautonomo")
-          t=t.replace("versionCode 2","versionCode 1")
-          t=t.replace("versionName '2.0.0'","versionName '1.0.0'")
-          S(p,t)
+      - name: Validar Control Autónomo
+        run: node tests/verify.cjs
 
-          S("settings.gradle",R("settings.gradle").replace("MisCuentasPRO","ControlAutonomo"))
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-          p=Path("app/src/main/AndroidManifest.xml")
-          S(p,R(p).replace("Mis Cuentas PRO","Control Autónomo"))
+      - name: Preparar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-          p=Path("app/src/main/java/com/miscuentas/pro/MainActivity.java")
-          t=R(p).replace("package com.miscuentas.pro;","package com.obreriyo.controlautonomo;")
-          t=t.replace("Mis Cuentas PRO","Control Autónomo")
-          t=t.replace("Mis_Cuentas_PRO","Control_Autonomo")
-          t=t.replace("mis_cuentas_pro_web_v1","control_autonomo_web_v1")
-          t=t.replace("mcp_pin_hash","ca_pin_hash")
-          S(p,t)
+      - name: Compilar APK
+        run: gradle :app:assembleDebug --stacktrace
 
-          # Aplicación principal
-          p=A/"index.html"
-          t=R(p)
+      - name: Evitar modificación de workflows
+        run: |
+          git restore .github/workflows/android.yml
 
-          for a,b in [
-            ("Mis Cuentas PRO","Control Autónomo"),
-            ("Mis_Cuentas_PRO","Control_Autonomo"),
-            ("mis_cuentas_pro_web_v1","control_autonomo_web_v1"),
-            ("mcp_pin_hash","ca_pin_hash"),
-            ("MCPStore","CAStore"),
-            ("{mcp:true","{ca:true"),
-            (" · v21"," · v1"),
-            ("Resultado mensual con ingresos reales y contables, gastos y reserva estimada para Hacienda.","Resultado mensual con ingresos, gastos y reserva estimada para Hacienda."),
-            ("La caja se calcula con los ingresos contables y se acumula mes a mes. Registra aquí lo que ingresas en el banco.","La caja se calcula con los ingresos registrados y se acumula mes a mes. Registra aquí lo que ingresas en el banco.")
-          ]:
-              t=t.replace(a,b)
+      - name: Guardar Control Autónomo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          t=t.replace("if(m.accounting==null)m.accounting=+m.total||0;","")
-          t=t.replace(",accounting:n","")
+          git add -u
 
-          t=FN(t,"movementHTML",'''function movementHTML(m){
-           let cat=m.type==="Gasto"?categoryName(m.category):"";
-           return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%</div><div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type==="Ingreso"?"green":"red"}">${m.type==="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
-          ''')
+          if git diff --cached --quiet; then
+            echo "No hay cambios pendientes."
+          else
+            git commit -m "Transformar proyecto en Control Autónomo"
+            git push
+          fi
 
-          a=t.find("function editAccounting(")
-          b=t.find("\nfunction ",a+1)
-          if a>=0 and b>=0:
-              t=t[:a]+t[b+1:]
-
-          t=FN(t,"renderQuarters",'''function renderQuarters(){
-           let y=currentYear(),p=+data.settings.irpf||20,out="";
-           for(let q=0;q<4;q++){
-            let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&Math.floor((+x.date.slice(5,7)-1)/3)==q),ib=0,eb=0,iv=0,ev=0,ret=0;
-            a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
-            let iva=iv-ev,irpf=Math.max(0,(ib-eb)*p/100-ret);
-            out+=`<div class="movement"><div class="ico">${q+1}T</div><div><div class="mname">Trimestre ${q+1}</div><div class="sub">IVA estimado ${eur(iva)}</div></div><div class="amt">${eur(irpf)}<div class="small">IRPF</div></div></div>`}
-           quarters.innerHTML=out}
-          ''')
-
-          t=FN(t,"monthlyBenefit",'''function monthlyBenefit(y,m){
-           let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m),p=+data.settings.irpf||20,inc=0,gas=0,ib=0,eb=0,iv=0,ev=0,ret=0;
-           a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){inc+=+x.total||0;ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{gas+=+x.total||0;if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
-           let bruto=inc-gas,iva=Math.max(0,iv-ev),irpf=Math.max(0,(ib-eb)*p/100-ret),hacienda=iva+irpf;
-           return{inc,gas,bruto,iva,irpf,hacienda,neto:bruto-hacienda}}
-          ''')
-
-          t=FN(t,"renderBenefits",'''function renderBenefits(){
-           let b=monthlyBenefit(currentYear(),+benefitMonth.value),m=+benefitMonth.value;
-           benefits.innerHTML=`<div style="border-top:1px solid var(--line);padding:14px 0"><b>${MONTHS[m-1]} ${currentYear()}</b><div class="small" style="margin-top:8px;line-height:1.7">Ingresos: <b>${eur(b.inc)}</b><br>Gastos: <b>${eur(b.gas)}</b><br>Beneficio antes de impuestos: <b>${eur(b.bruto)}</b><br>Hacienda estimada: <b>${eur(b.hacienda)}</b> (IVA ${eur(b.iva)} + IRPF ${eur(b.irpf)})<br><b>Beneficio neto estimado: ${eur(b.neto)}</b></div></div>`}
-          ''')
-
-          t=FN(t,"renderCash",'''function renderCash(){
-           let y=currentYear(),cash=0,out="";
-           for(let m=1;m<=12;m++){
-            let inc=data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.total||0),0);
-            let dep=data.bank.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.amount||0),0);
-            cash+=inc-dep;
-            out+=`<div class="movement"><div class="ico">${m}</div><div><div class="mname">${MONTHS[m-1]}</div><div class="sub">Ingresos ${eur(inc)}<br>Banco ${eur(dep)}</div></div><div class="amt">${eur(cash)}<div class="small">caja acumulada</div></div></div>`}
-           cashSummary.innerHTML=out;
-           bankHistory.innerHTML=data.bank.filter(x=>+x.date.slice(0,4)==y).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="movement"><div class="ico">€</div><div><div class="mname">Ingreso al banco</div><div class="sub">${x.date}</div></div><div class="amt">${eur(x.amount)}<div><button class="tiny danger" onclick="deleteBank(${x.id})">Borrar</button></div></div></div>`).join("")||'<div class="panel small">Sin ingresos al banco.</div>'}
-          ''')
-
-          t=FN(t,"monthlyIncomeRows",'''function monthlyIncomeRows(){
-           let y=currentYear(),m=+reportMonth.value,d={};
-           data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m&&!data.nonworking.includes(x.date)).forEach(x=>{let v=vals(x),r=d[x.date]||(d[x.date]={date:x.date,total:0,base:0});r.total+=v.total;r.base+=v.base});
-           return Object.values(d).sort((a,b)=>a.date.localeCompare(b.date))}
-          ''')
-
-          t=t.replace('url:window.AndroidPrint?"https://mis-cuentas-pro-b565d.web.app/":location.origin+"/"','url:location.origin+"/"')
-
-          t=t.replace(
-            '<script src="vendor/firebase-app-compat.js"></script><script src="vendor/firebase-auth-compat.js"></script><script src="vendor/firebase-firestore-compat.js"></script><script src="cloud.js"></script>',
-            '<script src="cloud.js"></script>'
-          )
-
-          if re.search(r"contabl|accounting",t,re.I):
-              raise Exception("Todavía queda lógica contable")
-
-          S(p,t)
-
-          # app.js = misma lógica del index
-          bloque=re.findall(r"<script>(.*?)</script>",t,re.S)[0]
-          S(A/"app.js",bloque.strip()+"\n")
-
-          # Almacenamiento independiente
-          p=A/"store.js"
-          s=R(p)
-          s=s.replace("MCPStore","CAStore")
-          s=s.replace("mis_cuentas_pro_web_v1","control_autonomo_web_v1")
-          s=s.replace("mcp_v2_","ca_v1_")
-          s=s.replace(
-            "for(const k of ['accounting','withholding'])if(m[k]!=null&&!Number.isFinite(m[k]))throw Error('Importe no válido');",
-            "if(m.withholding!=null&&!Number.isFinite(m.withholding))throw Error('Importe no válido');"
-          )
-          S(p,s)
-
-          # Firebase personal desactivado
-          S(A/"cloud.js",'''const $=id=>document.getElementById(id);
-          function cloudStatus(t){const e=$("syncStatus");if(e)e.textContent=t}
-          function scheduleSync(){cloudStatus("Guardado solo en este dispositivo")}
-          function pendiente(){cloudStatus("Guardado solo en este dispositivo");const e=$("authMessage");if(e)e.textContent="La sincronización se configurará con un Firebase independiente antes de publicar."}
-          function accountAction(){pendiente()}
-          function syncCloud(){pendiente()}
-          function resolveConflict(){pendiente()}
-          function importGuest(){pendiente()}
-          async function exportRecovery(){alert("Las copias permanecen en este dispositivo.")}
-          function initCloud(){if($("authForm"))$("authForm").hidden=true;if($("signedIn"))$("signedIn").hidden=true;pendiente()}
-          initCloud();
-          ''')
-
-          p=A/"boot.js"
-          s=R(p)
-          S(p,s.replace("Mis Cuentas PRO","Control Autónomo").replace("mcp_pin_hash","ca_pin_hash").replace("mcp-single-editor","control-autonomo-single-editor"))
-
-          p=A/"sw.js"
-          s=R(p)
-          S(p,s.replace("mis-cuentas-pro-v2.0.0","control-autonomo-v1.0.0").replace("k.startsWith('mis-cuentas-pro-')","k.startsWith('control-autonomo-')"))
-
-          p=A/"manifest.webmanifest"
-          m=json.loads(R(p))
-          m["name"]="Control Autónomo"
-          m["short_name"]="Control Autónomo"
-          S(p,json.dumps(m,ensure_ascii=False,indent=2)+"\n")
-
-          p=Path("firebase.json")
-          S(p,R(p).replace("frame-src https://mis-cuentas-pro-b565d.firebaseapp.com","frame-src 'none'"))
-
-          # Android y Web iguales
-          for n in ["index.html","app.js","store.js","cloud.js","boot.js","sw.js","manifest.webmanifest"]:
-              shutil.copy2(A/n,W/n)
-
-          # Documentación
-          S("README.txt","Control Autónomo 1.0.0\nAplicación independiente para autónomos.\n")
-          S("LEEME.md","# Control Autónomo\n\nProyecto independiente. La nube se conectará a un Firebase propio antes de publicar.\n")
-          S("VALIDACION.md","# Control Autónomo\n\nIdentidad, datos y cálculos independientes de Mis Cuentas PRO.\n")
-
-          # Validación
-          S("tests/verify.cjs",'''const fs=require("fs"),path=require("path"),vm=require("vm"),assert=require("assert/strict");
-          const root=path.resolve(__dirname,".."),a=path.join(root,"app/src/main/assets"),R=p=>fs.readFile
+      - name: Guardar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Control-Autonomo-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
