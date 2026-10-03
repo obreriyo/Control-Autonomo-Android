@@ -1,4 +1,4 @@
-name: Transformar Control Autónomo
+name: Actualizar ayuda Control Autónomo
 
 on:
   workflow_dispatch:
@@ -7,75 +7,98 @@ permissions:
   contents: write
 
 jobs:
-  transformar:
+  actualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 25
     steps:
-      - name: Descargar proyecto
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Ejecutar transformación validada
+      - name: Añadir ayuda sin modificar cálculos
         run: |
-          git show 6e8ed285df0d46b8b44fc4379140d5846850d44e:.github/workflows/transformar-control-autonomo.yml > /tmp/workflow-validado.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          import html, re, shutil
 
-          awk '
-            /python3 - <</ {copiar=1; next}
-            copiar && /^          PY$/ {exit}
-            copiar {
-              sub(/^          /,"")
-              print
-            }
-          ' /tmp/workflow-validado.yml > /tmp/transform.py
+          assets = Path('app/src/main/assets')
+          temas = [
+              ('Primeros pasos', 'En Ajustes escribe el nombre de tu negocio y guarda la configuración. En Inicio selecciona el año. Pulsa + para añadir un ingreso o gasto. Consulta tus resultados en Informes y exporta una copia de seguridad regularmente.'),
+              ('Ingresos y gastos', 'Pulsa +, selecciona el tipo e indica fecha, concepto e importe total con IVA incluido. Elige el porcentaje de IVA correspondiente. En gastos revisa la categoría y las casillas de deducción. En ingresos puedes indicar una retención. Para corregir un registro, bórralo y vuelve a introducirlo.'),
+              ('Movimientos y calendario', 'En Movimientos abre un mes del año seleccionado. Pulsa un día del calendario para marcarlo como no trabajado; vuelve a pulsarlo para recuperarlo. Un día con ingresos registrados no puede marcarse como no trabajado.'),
+              ('Balance y beneficios', 'Inicio muestra ingresos menos gastos del año seleccionado. En Informes, Beneficios muestra el resultado mensual y una reserva estimada para Hacienda. El porcentaje de IRPF de Ajustes se utiliza para estimaciones; no determina por sí solo lo que debes pagar.'),
+              ('Caja / Banco', 'La caja acumula los ingresos registrados menos las cantidades anotadas como ingresadas al banco, mes a mes dentro del año seleccionado. No descuenta gastos ni arrastra el saldo del año anterior. Si registras 500 € de ingresos y 200 € ingresados al banco, la caja muestra 300 €. El ingreso al banco no es una venta nueva. La app no se conecta con tu banco.'),
+              ('Informes, PDF y gestoría', 'Selecciona el año en Inicio y el mes en Informe mensual. Pulsa Ver informe para consultar los ingresos agrupados por fecha, con IVA y base imponible. Puedes ver, guardar o compartir el PDF e imprimirlo. Desde Ajustes se utiliza el mes seleccionado en Informe mensual. El PDF no sirve para restaurar datos. Control gestoría permite marcar ingresos del mes y gastos ya entregados al gestor.'),
+              ('Copia de seguridad y restauración', 'En Ajustes, Exportar copia de seguridad guarda un archivo JSON con los registros y la configuración. Conserva otra copia fuera del móvil. Antes de importar, exporta los datos actuales. Importar copia sustituye los registros; no combina dos copias. Después revisa el año y los movimientos. El PIN no se incluye en la copia.'),
+              ('Protección con PIN', 'Introduce entre 4 y 8 cifras en Ajustes y pulsa Activar / cambiar PIN. Para desactivarlo pulsa Quitar PIN y confirma. Recuerda el código: esta versión no ofrece recuperación de PIN. El PIN protege el acceso a la pantalla, pero no cifra las copias exportadas.'),
+              ('Dónde se guardan los datos', 'Esta versión guarda los datos en este dispositivo, sin sincronización automática. Para trasladarlos, exporta una copia JSON e impórtala en el otro dispositivo. Antes de desinstalar la app o borrar sus datos, exporta una copia para evitar perder tus registros.')
+          ]
+          bloques = ''.join('<details><summary>' + html.escape(t) + '</summary><p>' + html.escape(c) + '</p></details>' for t, c in temas)
+          ayuda = '<section class="panel help-panel" aria-labelledby="helpTitle"><details id="appHelp"><summary id="helpTitle">Ayuda y cómo usar la app</summary>' + bloques + '</details><details id="appAbout"><summary>Acerca de Control Autónomo</summary><p>Versión 1.0.1. Control de ingresos, gastos e informes para tu negocio.</p><p>Las estimaciones fiscales son orientativas. Revisa los resultados con tu gestor antes de preparar declaraciones.</p></details></section>'
+          p = assets / 'index.html'
+          s = p.read_text(encoding='utf-8')
+          if 'id="appHelp"' not in s:
+              ancla = 'onchange="importData(event)" style="display:none"></label></div></div>'
+              assert s.count(ancla) == 1, 'No se encontró el apartado esperado. No se modifica la app.'
+              s = s.replace(ancla, ancla[:-6] + ayuda + '</div>')
+          s = s.replace('<div class="section">Copias de seguridad</div>', '<div class="section">Copias e informes</div>')
+          s = s.replace('Control Autónomo · v1</div>', 'Control Autónomo · 1.0.1</div>')
+          p.write_text(s, encoding='utf-8')
+          p = assets / 'theme.css'
+          s = p.read_text(encoding='utf-8')
+          if '.help-panel summary' not in s:
+              s += '\n.help-panel details{border-top:1px solid var(--line);padding:12px 0}.help-panel summary{cursor:pointer;font-weight:700;line-height:1.5;padding:8px 0;overflow-wrap:anywhere}.help-panel p{font-size:14px;line-height:1.7;overflow-wrap:anywhere}.help-panel summary:focus-visible{outline:3px solid #e9af55;outline-offset:3px}\n'
+          p.write_text(s, encoding='utf-8')
+          p = assets / 'sw.js'
+          p.write_text(p.read_text(encoding='utf-8').replace('control-autonomo-v1.0.0', 'control-autonomo-v1.0.1'), encoding='utf-8')
+          p = Path('app/build.gradle')
+          s = p.read_text(encoding='utf-8')
+          s = re.sub(r'versionCode\s+1\b', 'versionCode 2', s)
+          s = s.replace("versionName '1.0.0'", "versionName '1.0.1'")
+          p.write_text(s, encoding='utf-8')
+          for nombre in ['index.html', 'theme.css', 'sw.js']:
+              shutil.copyfile(assets / nombre, Path('web') / nombre)
+          print('Ayuda añadida. Cálculos y almacenamiento sin modificar.')
+          PY
 
-          test -s /tmp/transform.py
-          python3 /tmp/transform.py
-
-      - name: Preparar Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Validar Control Autónomo
+      - name: Validar aplicación
         run: node tests/verify.cjs
 
-      - name: Preparar Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Preparar Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Recuperar firma si está configurada
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+          fi
 
       - name: Compilar APK
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Evitar modificación de workflows
-        run: |
-          git restore .github/workflows/android.yml
-
-      - name: Guardar Control Autónomo
+      - name: Guardar mejoras
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add -u
-
-          if git diff --cached --quiet; then
-            echo "No hay cambios pendientes."
-          else
-            git commit -m "Transformar proyecto en Control Autónomo"
+          git add app/build.gradle app/src/main/assets/index.html app/src/main/assets/theme.css app/src/main/assets/sw.js web/index.html web/theme.css web/sw.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Añadir ayuda a Control Autónomo 1.0.1"
             git push
           fi
 
-      - name: Guardar APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Control-Autonomo-APK
+          name: Control-Autonomo-1.0.1-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
