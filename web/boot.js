@@ -3,9 +3,9 @@
  function load(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=reject;document.body.appendChild(s)})}
  async function start(){
   try{
-   if(localStorage.getItem('mcp_pin_hash'))document.getElementById('lockScreen').style.display='flex';
+   if(localStorage.getItem('ca_pin_hash'))document.getElementById('lockScreen').style.display='flex';
    await load('app.js');await load('cloud.js');
-   if(localStorage.getItem('mcp_pin_hash'))document.getElementById('lockScreen').style.display='flex';
+   if(localStorage.getItem('ca_pin_hash'))document.getElementById('lockScreen').style.display='flex';
    updateFabForPage();
    if('serviceWorker' in navigator&&!window.AndroidPrint)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   }catch(e){
@@ -19,9 +19,9 @@
  if(window.AndroidPrint){await start();return}
 
  if(navigator.locks){
-  navigator.locks.request('mcp-single-editor',{ifAvailable:true},async lock=>{
+  navigator.locks.request('control-autonomo-single-editor',{ifAvailable:true},async lock=>{
    if(!lock){
-    document.body.innerHTML='<main style="font:18px system-ui;padding:40px"><h1>Mis Cuentas PRO ya está abierta</h1><p>Utiliza la otra pestaña para evitar cambios simultáneos. Ciérrala y recarga esta página para continuar aquí.</p><button onclick="location.reload()">Volver a intentar</button></main>';
+    document.body.innerHTML='<main style="font:18px system-ui;padding:40px"><h1>Control Autónomo ya está abierta</h1><p>Utiliza la otra pestaña para evitar cambios simultáneos. Ciérrala y recarga esta página para continuar aquí.</p><button onclick="location.reload()">Volver a intentar</button></main>';
     return
    }
    await start();

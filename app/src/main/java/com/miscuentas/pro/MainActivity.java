@@ -1,4 +1,4 @@
-package com.miscuentas.pro;
+package com.obreriyo.controlautonomo;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -125,7 +125,7 @@ public class MainActivity extends Activity {
 
                 if (OLD.equals(url)) {
                     view.evaluateJavascript(
-                            "JSON.stringify({mis_cuentas_pro_web_v1:localStorage.getItem('mis_cuentas_pro_web_v1'),mcp_pin_hash:localStorage.getItem('mcp_pin_hash')})",
+                            "JSON.stringify({control_autonomo_web_v1:localStorage.getItem('control_autonomo_web_v1'),ca_pin_hash:localStorage.getItem('ca_pin_hash')})",
                             result -> {
                                 try {
                                     Object parsed =
@@ -289,7 +289,7 @@ public class MainActivity extends Activity {
 
                 PrintDocumentAdapter adapter =
                         webView.createPrintDocumentAdapter(
-                                "Mis_Cuentas_PRO"
+                                "Control_Autonomo"
                         );
 
                 PrintAttributes attrs =
@@ -303,7 +303,7 @@ public class MainActivity extends Activity {
                                 .build();
 
                 pm.print(
-                        "Mis Cuentas PRO",
+                        "Control Autónomo",
                         adapter,
                         attrs
                 );
@@ -437,7 +437,7 @@ public class MainActivity extends Activity {
                             MainActivity.this
                     )
                             .setMessage(
-                                    "¿Quieres salir de Mis Cuentas PRO?"
+                                    "¿Quieres salir de Control Autónomo?"
                             )
                             .setPositiveButton(
                                     "Aceptar",

@@ -1,12 +1,10 @@
-function escapeHTML(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-
 const MONTHS=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const KEY="mis_cuentas_pro_web_v1";
-let data=MCPStore.open(null);
+const KEY="control_autonomo_web_v1";
+let data=CAStore.open(null);
 data.movements=data.movements||[];data.bank=data.bank||[];data.settings=data.settings||{owner:"",irpf:20};data.nonworking=data.nonworking||[];data.gestIncome=data.gestIncome||{};
-data.movements.forEach(m=>{if(m.accounting==null)m.accounting=+m.total||0;if(m.gestoria==null)m.gestoria=false;if(m.type==="Gasto"){if(m.category==null)m.category="otros";if(m.irpfDeductible==null)m.irpfDeductible=true;if(m.vatDeductible==null)m.vatDeductible=true}});
+data.movements.forEach(m=>{if(m.gestoria==null)m.gestoria=false;if(m.type==="Gasto"){if(m.category==null)m.category="otros";if(m.irpfDeductible==null)m.irpfDeductible=true;if(m.vatDeductible==null)m.vatDeductible=true}});
 const eur=n=>Number(n||0).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
-function save(){try{MCPStore.save(data);render();if(window.scheduleSync)scheduleSync()}catch(e){alert('No se pudo guardar: '+e.message+'. Exporta una copia antes de cerrar.');throw e}}
+function save(){try{CAStore.save(data);render();if(window.scheduleSync)scheduleSync()}catch(e){alert('No se pudo guardar: '+e.message+'. Exporta una copia antes de cerrar.');throw e}}
 function currentYear(){return +document.getElementById("year").value}
 let handlingAndroidBack=false;
 function activatePage(id,b){
@@ -18,26 +16,26 @@ function activatePage(id,b){
 }
 function show(id,b){
  activatePage(id,b);
- if(!handlingAndroidBack && history.state?.page!==id) history.pushState({mcp:true,page:id},"",location.href);
+ if(!handlingAndroidBack && history.state?.page!==id) history.pushState({ca:true,page:id},"",location.href);
 }
 function init(){
- let y=new Date().getFullYear(), sel=document.getElementById("year");for(let n=y-5;n<=y+5;n++)sel.add(new Option(n,n));sel.value=y;sel.onchange=render;
+ let y=new Date().getFullYear(), sel=document.getElementById("year"),years=[...data.movements.map(x=>+String(x.date).slice(0,4)),...data.bank.map(x=>+String(x.date).slice(0,4))].filter(Number.isFinite),min=Math.min(y-10,...years),max=Math.max(y+20,...years);for(let n=min;n<=max;n++)sel.add(new Option(n,n));sel.value=y;sel.onchange=render;
  owner.value=data.settings.owner||"";irpf.value=data.settings.irpf??20;
  date.value=new Date().toISOString().slice(0,10);bankDate.value=date.value;
  months.innerHTML=MONTHS.map((m,i)=>`<button onclick="renderMonth(${i+1})">${m}</button>`).join("");
- [reportMonth,gestMonth].forEach(sel=>{sel.innerHTML=MONTHS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("");sel.value=new Date().getMonth()+1});render()
+ [reportMonth,gestMonth,benefitMonth].forEach(sel=>{sel.innerHTML=MONTHS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("");sel.value=new Date().getMonth()+1});render()
 }
 function vals(m){let t=+m.total||0,r=+m.vat||0,base=t/(1+r/100);return{base,vat:t-base,total:t}}
 function render(){
  let y=currentYear(), ms=data.movements.filter(m=>+m.date.slice(0,4)==y),inc=ms.filter(m=>m.type=="Ingreso").reduce((a,m)=>a+(+m.total||0),0),exp=ms.filter(m=>m.type=="Gasto").reduce((a,m)=>a+(+m.total||0),0);
  income.textContent="+"+eur(inc);expense.textContent="-"+eur(exp);balance.textContent=eur(inc-exp);
  recent.innerHTML=ms.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(m=>movementHTML(m)).join("")||'<div class="panel small">Todavía no hay movimientos.</div>';
- renderQuarters();renderCash()
+ renderQuarters();renderCash();renderBenefits()
 }
 function movementHTML(m){
- let acc=m.accounting??m.total,changed=Math.abs(acc-(+m.total||0))>.001; let cat=m.type==="Gasto"?categoryName(m.category):"";
- return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${escapeHTML(m.concept||m.type)}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}% ${changed?`· <span class="badge">Contable ${eur(acc)}</span>`:""}</div><div class="actions"><button class="tiny" onclick="editAccounting(${m.id})">Contable</button><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type=="Ingreso"?"green":"red"}">${m.type=="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
-function editAccounting(id){let m=data.movements.find(x=>x.id==id);if(!m)return;let v=prompt("Importe contable. El importe original NO cambiará:",String(m.accounting??m.total).replace(".",","));if(v===null)return;let n=parseFloat(v.replace(",","."));if(!isNaN(n)&&n>=0){m.accounting=n;save()}}
+ let cat=m.type==="Gasto"?categoryName(m.category):"";
+ return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%</div><div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type==="Ingreso"?"green":"red"}">${m.type==="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
+
 function deleteMove(id){if(confirm("¿Borrar este movimiento?")){data.movements=data.movements.filter(x=>x.id!=id);save()}}
 const CATEGORY_NAMES={material:"Compras / materiales",gestoria:"Gestoría / servicios profesionales",autonomos:"Cuota de autónomos (RETA)",suministros:"Suministros",alquiler:"Alquiler",seguros:"Seguros",transporte:"Vehículo / transporte",formacion:"Formación",otros:"Otros gastos"};
 function categoryName(v){return CATEGORY_NAMES[v]||"Otros gastos"}
@@ -54,43 +52,65 @@ const EXPENSE_PRESETS={
  otros:{vat:21,irpf:false,vatDed:false,hint:"Otros gastos queda sin deducción automática. Marca IRPF y/o IVA únicamente si el gasto está vinculado a la actividad y cumple los requisitos."}
 };
 function applyExpenseCategory(){let p=EXPENSE_PRESETS[expenseCategory.value]||EXPENSE_PRESETS.otros;vat.disabled=false;vat.value=p.vat;irpfDeductible.checked=p.irpf;vatDeductible.checked=p.vatDed;vat.disabled=!!p.lockVat;fiscalHint.textContent=p.hint}
-function openAdd(){date.value=new Date().toISOString().slice(0,10);type.value="Ingreso";vat.value=21;withholding.value=0;syncMovementForm();dlg.showModal()}
+function dateForSelectedYear(){let now=new Date(),y=currentYear(),m=now.getMonth()+1,d=now.getDate(),last=new Date(y,m,0).getDate();d=Math.min(d,last);return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`}
+function openAdd(){date.value=dateForSelectedYear();type.value="Ingreso";vat.value=21;withholding.value=0;syncMovementForm();dlg.showModal()}
 type.addEventListener("change",syncMovementForm);
-function addMovement(){let n=parseFloat(total.value.replace(",","."));if(!date.value||!n)return alert("Indica fecha e importe.");if(type.value==="Ingreso"&&data.nonworking.includes(date.value))return alert("Este día está marcado como no trabajado. No puedes registrar ingresos en esta fecha.");let isExpense=type.value==="Gasto",c=isExpense?expenseCategory.value:null,v=+vat.value||0;if(c==="autonomos")v=0;data.movements.push({id:newRecordId(),type:type.value,date:date.value,concept:concept.value,total:n,accounting:n,vat:v,withholding:+withholding.value||0,gestoria:false,category:c,irpfDeductible:isExpense?irpfDeductible.checked:false,vatDeductible:isExpense?vatDeductible.checked:false});concept.value="";total.value="";dlg.close();save()}
+function addMovement(){let n=parseFloat(total.value.replace(",","."));if(!date.value||!n)return alert("Indica fecha e importe.");if(type.value==="Ingreso"&&data.nonworking.includes(date.value))return alert("Este día está marcado como no trabajado. No puedes registrar ingresos en esta fecha.");let isExpense=type.value==="Gasto",c=isExpense?expenseCategory.value:null,v=+vat.value||0;if(c==="autonomos")v=0;data.movements.push({id:Date.now(),type:type.value,date:date.value,concept:concept.value,total:n,vat:v,withholding:+withholding.value||0,gestoria:false,category:c,irpfDeductible:isExpense?irpfDeductible.checked:false,vatDeductible:isExpense?vatDeductible.checked:false});concept.value="";total.value="";dlg.close();save()}
 function renderMonth(m){
  show("moves",document.querySelectorAll(".nav button")[1]);let y=currentYear(),arr=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).sort((a,b)=>b.date.localeCompare(a.date));
  let days=new Date(y,m,0).getDate(),nw=data.nonworking.filter(d=>d.startsWith(`${y}-${String(m).padStart(2,"0")}`)).length;
- monthList.innerHTML=`<div class="section">${MONTHS[m-1]} ${y}</div>
- <div class="panel">
-   <b>Calendario laboral</b>
-   <p class="small">Pulsa directamente sobre cualquier día para marcarlo como no trabajado. Vuelve a pulsarlo para recuperarlo.</p>
-   <div class="small" style="margin-bottom:10px"><span class="badge">✓ Trabajado</span> <span class="badge" style="background:#ffe9eb;color:#d94d55">✕ No trabajado (${nw})</span></div>
-   <div class="monthgrid">${Array.from({length:days},(_,i)=>{let d=`${y}-${String(m).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`,off=data.nonworking.includes(d);return `<button onclick="toggleDay('${d}')" style="${off?'background:#ffe9eb;color:#d94d55;text-decoration:line-through;border:1px solid #f3b8bd':'border:1px solid transparent'}">${i+1}${off?' ✕':''}</button>`}).join("")}</div>
- </div>`+(arr.map(movementHTML).join("")||'<div class="panel small">Sin movimientos este mes.</div>')
+ let first=(new Date(y,m-1,1).getDay()+6)%7;
+ let weekdays=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+ let calendar=weekdays.map(x=>`<div class="weekday">${x}</div>`).join("")+Array.from({length:first},()=>'<div class="empty"></div>').join("")+Array.from({length:days},(_,i)=>{let d=`${y}-${String(m).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`,off=data.nonworking.includes(d);return `<button onclick="toggleDay('${d}')" style="${off?'background:#ffe9eb;color:#d94d55;text-decoration:line-through;border:1px solid #f3b8bd':'border:1px solid transparent'}">${i+1}${off?' ✕':''}</button>`}).join("");
+ monthList.innerHTML=`<div class="section">${MONTHS[m-1]} ${y}</div><div class="panel"><b>Calendario laboral</b><p class="small">Pulsa directamente sobre cualquier día para marcarlo como no trabajado. Vuelve a pulsarlo para recuperarlo.</p><div class="small" style="margin-bottom:10px"><span class="badge">✓ Trabajado</span> <span class="badge" style="background:#ffe9eb;color:#d94d55">✕ No trabajado (${nw})</span></div><div class="workcalendar">${calendar}</div></div>`+(arr.map(movementHTML).join("")||'<div class="panel small">Sin movimientos este mes.</div>')
 }
 function toggleDay(d){let i=data.nonworking.indexOf(d);if(i>=0){data.nonworking.splice(i,1)}else{let existing=data.movements.filter(x=>x.type==="Ingreso"&&x.date===d);if(existing.length){alert(`No puedes marcar este día como no trabajado porque tiene ${existing.length} ingreso${existing.length>1?"s":""} registrado${existing.length>1?"s":""}. Borra o cambia primero esos ingresos.`);return}data.nonworking.push(d)}save();renderMonth(+d.slice(5,7))}
-function renderQuarters(){let y=currentYear(),p=+data.settings.irpf||20,out="";for(let q=0;q<4;q++){let arr=data.movements.filter(m=>+m.date.slice(0,4)==y&&Math.floor((+m.date.slice(5,7)-1)/3)==q),ib=0,eb=0,iv=0,ev=0,ret=0;arr.forEach(m=>{let v=vals({...m,total:m.accounting??m.total});if(m.type=="Ingreso"){ib+=v.base;iv+=v.vat;ret+=v.base*(+m.withholding||0)/100}else{if(m.irpfDeductible!==false)eb+=v.base;if(m.vatDeductible!==false)ev+=v.vat}});let iva=iv-ev,irp=Math.max(0,(ib-eb)*p/100-ret);out+=`<div class="movement"><div class="ico">${q+1}T</div><div><div class="mname">Trimestre ${q+1}</div><div class="sub">IVA estimado ${eur(iva)}</div></div><div class="amt">${eur(irp)}<div class="small">IRPF</div></div></div>`}quarters.innerHTML=out}
-function addBank(){let n=parseFloat(bankAmount.value.replace(",","."));if(!bankDate.value||!n)return alert("Indica fecha e importe.");data.bank.push({id:newRecordId(),date:bankDate.value,amount:n});bankAmount.value="";save()}
-function renderCash(){let y=currentYear(),cash=0,bank=0,out="";for(let m=1;m<=12;m++){let inc=data.movements.filter(x=>x.type=="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.total||0),0);let dep=data.bank.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.amount||0),0);cash+=inc-dep;bank+=dep;out+=`<div class="movement"><div class="ico">${m}</div><div><div class="mname">${MONTHS[m-1]}</div><div class="sub">Banco ${eur(dep)}</div></div><div class="amt">${eur(cash)}<div class="small">caja</div></div></div>`}cashSummary.innerHTML=out;bankHistory.innerHTML=data.bank.filter(x=>+x.date.slice(0,4)==y).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="movement"><div class="ico">€</div><div><div class="mname">Ingreso al banco</div><div class="sub">${x.date}</div></div><div class="amt">${eur(x.amount)}<div><button class="tiny danger" onclick="deleteBank(${x.id})">Borrar</button></div></div></div>`).join("")||'<div class="panel small">Sin ingresos al banco.</div>'}
+function renderQuarters(){
+ let y=currentYear(),p=+data.settings.irpf||20,out="";
+ for(let q=0;q<4;q++){
+  let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&Math.floor((+x.date.slice(5,7)-1)/3)==q),ib=0,eb=0,iv=0,ev=0,ret=0;
+  a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
+  let iva=iv-ev,irpf=Math.max(0,(ib-eb)*p/100-ret);
+  out+=`<div class="movement"><div class="ico">${q+1}T</div><div><div class="mname">Trimestre ${q+1}</div><div class="sub">IVA estimado ${eur(iva)}</div></div><div class="amt">${eur(irpf)}<div class="small">IRPF</div></div></div>`}
+ quarters.innerHTML=out}
+
+function monthlyBenefit(y,m){
+ let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m),p=+data.settings.irpf||20,inc=0,gas=0,ib=0,eb=0,iv=0,ev=0,ret=0;
+ a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){inc+=+x.total||0;ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{gas+=+x.total||0;if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
+ let bruto=inc-gas,iva=Math.max(0,iv-ev),irpf=Math.max(0,(ib-eb)*p/100-ret),hacienda=iva+irpf;
+ return{inc,gas,bruto,iva,irpf,hacienda,neto:bruto-hacienda}}
+
+function renderBenefits(){
+ let b=monthlyBenefit(currentYear(),+benefitMonth.value),m=+benefitMonth.value;
+ benefits.innerHTML=`<div style="border-top:1px solid var(--line);padding:14px 0"><b>${MONTHS[m-1]} ${currentYear()}</b><div class="small" style="margin-top:8px;line-height:1.7">Ingresos: <b>${eur(b.inc)}</b><br>Gastos: <b>${eur(b.gas)}</b><br>Beneficio antes de impuestos: <b>${eur(b.bruto)}</b><br>Hacienda estimada: <b>${eur(b.hacienda)}</b> (IVA ${eur(b.iva)} + IRPF ${eur(b.irpf)})<br><b>Beneficio neto estimado: ${eur(b.neto)}</b></div></div>`}
+
+function addBank(){let n=parseFloat(bankAmount.value.replace(",","."));if(!bankDate.value||!n)return alert("Indica fecha e importe.");data.bank.push({id:Date.now(),date:bankDate.value,amount:n});bankAmount.value="";save()}
+function renderCash(){
+ let y=currentYear(),cash=0,out="";
+ for(let m=1;m<=12;m++){
+  let inc=data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.total||0),0);
+  let dep=data.bank.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.amount||0),0);
+  cash+=inc-dep;
+  out+=`<div class="movement"><div class="ico">${m}</div><div><div class="mname">${MONTHS[m-1]}</div><div class="sub">Ingresos ${eur(inc)}<br>Banco ${eur(dep)}</div></div><div class="amt">${eur(cash)}<div class="small">caja acumulada</div></div></div>`}
+ cashSummary.innerHTML=out;
+ bankHistory.innerHTML=data.bank.filter(x=>+x.date.slice(0,4)==y).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="movement"><div class="ico">€</div><div><div class="mname">Ingreso al banco</div><div class="sub">${x.date}</div></div><div class="amt">${eur(x.amount)}<div><button class="tiny danger" onclick="deleteBank(${x.id})">Borrar</button></div></div></div>`).join("")||'<div class="panel small">Sin ingresos al banco.</div>'}
+
 function monthlyIncomeRows(){
- let y=currentYear(),m=+document.getElementById("reportMonth").value,days={};
- data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m&&!data.nonworking.includes(x.date)).forEach(x=>{
-   let v=vals({...x,total:x.accounting??x.total}),d=days[x.date]||(days[x.date]={date:x.date,total:0,base:0});
-   d.total+=v.total; d.base+=v.base;
- });
- return Object.values(days).sort((a,b)=>a.date.localeCompare(b.date));
-}
+ let y=currentYear(),m=+reportMonth.value,d={};
+ data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m&&!data.nonworking.includes(x.date)).forEach(x=>{let v=vals(x),r=d[x.date]||(d[x.date]={date:x.date,total:0,base:0});r.total+=v.total;r.base+=v.base});
+ return Object.values(d).sort((a,b)=>a.date.localeCompare(b.date))}
+
 function buildMonthlyReport(){
  let y=currentYear(),m=+document.getElementById("reportMonth").value,arr=monthlyIncomeRows();
  let tt=0,tb=0;
  let rows=arr.map(x=>{tt+=x.total;tb+=x.base;return `<tr><td>${x.date.slice(8,10)}/${x.date.slice(5,7)}/${x.date.slice(0,4)}</td><td>${eur(x.total)}</td><td>${eur(x.base)}</td></tr>`}).join("");
  let totalRow=arr.length?`<tr><th>TOTAL MES</th><th>${eur(tt)}</th><th>${eur(tb)}</th></tr>`:"";
- document.getElementById("monthlyReport").innerHTML=`<h3>${escapeHTML(data.settings.owner||"Nombre de empresa")}</h3><div class="small" style="margin:-6px 0 14px">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable"><tr><th>Fecha</th><th>Efectivo + IVA</th><th>Base imponible</th></tr>${rows||'<tr><td colspan="3">Sin ingresos registrados</td></tr>'}${totalRow}</table>`;
+ document.getElementById("monthlyReport").innerHTML=`<h3>${data.settings.owner||"Nombre de empresa"}</h3><div class="small" style="margin:-6px 0 14px">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable"><tr><th>Fecha</th><th>Efectivo + IVA</th><th>Base imponible</th></tr>${rows||'<tr><td colspan="3">Sin ingresos registrados</td></tr>'}${totalRow}</table>`;
  const pa=document.getElementById("pdfActions");if(pa)pa.style.display="block";
 }
 function renderGestoria(){
  let y=currentYear(),m=+gestMonth.value,key=`${y}-${String(m).padStart(2,"0")}`,arr=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m),inc=arr.filter(x=>x.type=="Ingreso"),gas=arr.filter(x=>x.type=="Gasto");
- gestoria.innerHTML=`<div class="check"><input type="checkbox" ${data.gestIncome[key]?"checked":""} onchange="data.gestIncome['${key}']=this.checked;save()"><b>Ingresos del mes entregados</b></div><h3>Gastos</h3>`+(gas.map(x=>`<label class="check"><input type="checkbox" ${x.gestoria?"checked":""} onchange="setGest(${x.id},this.checked)"><span>${x.date.slice(8,10)} · ${escapeHTML(x.concept||"Gasto")} · ${eur(x.total)}</span></label>`).join("")||'<p class="small">Sin gastos este mes.</p>')
+ gestoria.innerHTML=`<div class="check"><input type="checkbox" ${data.gestIncome[key]?"checked":""} onchange="data.gestIncome['${key}']=this.checked;save()"><b>Ingresos del mes entregados</b></div><h3>Gastos</h3>`+(gas.map(x=>`<label class="check"><input type="checkbox" ${x.gestoria?"checked":""} onchange="setGest(${x.id},this.checked)"><span>${x.date.slice(8,10)} · ${x.concept||"Gasto"} · ${eur(x.total)}</span></label>`).join("")||'<p class="small">Sin gastos este mes.</p>')
 }
 function setGest(id,v){let m=data.movements.find(x=>x.id==id);if(m){m.gestoria=v;save()}}
 function deleteBank(id){if(confirm("¿Borrar este ingreso al banco?")){data.bank=data.bank.filter(x=>x.id!=id);save()}}
@@ -130,7 +150,7 @@ function viewMonthlyPDF(){
  else trs+=`<tr><th>TOTAL MES</th><th>${eur(tt)}</th><th>${eur(tb)}</th></tr>`;
  let old=document.getElementById("pdfPreviewOverlay");if(old)old.remove();
  let o=document.createElement("div");o.id="pdfPreviewOverlay";o.style.cssText="position:fixed;inset:0;z-index:99999;background:#e9edf2;overflow:auto;padding:14px";
- o.innerHTML=`<div style="max-width:820px;margin:0 auto"><div style="position:sticky;top:0;z-index:2;display:flex;gap:8px;padding:8px 0;background:#e9edf2"><button class="primary" style="flex:1" onclick="document.getElementById('pdfPreviewOverlay').remove()">← Volver</button><button class="secondary" style="flex:1;background:#111;color:#fff;border-color:#111" onclick="printMonthlyReport()">🖨️ Imprimir / Guardar PDF</button></div><div id="pdfPreviewPage" style="background:#fff;color:#111;min-height:75vh;padding:28px 20px;box-shadow:0 2px 12px #0002"><h2 style="margin:0 0 5px;color:#111">${escapeHTML(data.settings.owner||"Nombre de empresa")}</h2><div style="margin-bottom:22px;color:#555">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable" style="width:100%;color:#111"><tr><th>Fecha</th><th>Efectivo + IVA</th><th>Base imponible</th></tr>${trs}</table></div></div>`;
+ o.innerHTML=`<div style="max-width:820px;margin:0 auto"><div style="position:sticky;top:0;z-index:2;display:flex;gap:8px;padding:8px 0;background:#e9edf2"><button class="primary" style="flex:1" onclick="document.getElementById('pdfPreviewOverlay').remove()">← Volver</button><button class="secondary" style="flex:1;background:#111;color:#fff;border-color:#111" onclick="saveMonthlyPDF()">💾 Guardar / compartir</button><button class="secondary" style="flex:1" onclick="printMonthlyReport()">🖨️ Imprimir</button></div><div id="pdfPreviewPage" style="background:#fff;color:#111;min-height:75vh;padding:28px 20px;box-shadow:0 2px 12px #0002"><h2 style="margin:0 0 5px;color:#111">${data.settings.owner||"Nombre de empresa"}</h2><div style="margin-bottom:22px;color:#555">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable" style="width:100%;color:#111"><tr><th>Fecha</th><th>Efectivo + IVA</th><th>Base imponible</th></tr>${trs}</table></div></div>`;
  document.body.appendChild(o);
 }
 async function blobToDataURL(blob){
@@ -140,73 +160,66 @@ async function downloadFileCompat(blob,name){
  // En Android WebView los enlaces blob: pueden no llegar al gestor de descargas.
  // Un data: URL conserva el archivo dentro del documento y evita esa limitación.
  const href=await blobToDataURL(blob);
- if(window.AndroidFiles){window.AndroidFiles.saveFile(href.split(',')[1],name,blob.type);return}
+ if(window.AndroidFiles && typeof window.AndroidFiles.saveFile==="function"){window.AndroidFiles.saveFile(href.split(',')[1],name,blob.type);return}
  const a=document.createElement("a");a.href=href;a.download=name;a.setAttribute("download",name);a.style.display="none";
  document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),1500);
 }
-async function downloadMonthlyPDF(){try{buildMonthlyReport();const blob=makeMonthlyPdfBytes(),m=+document.getElementById("reportMonth").value,y=currentYear(),name=`Mis_Cuentas_PRO_${y}_${String(m).padStart(2,"0")}.pdf`;await downloadFileCompat(blob,name)}catch(e){console.error(e);alert("No se pudo descargar el PDF en este dispositivo.")}}
+async function downloadMonthlyPDF(){try{buildMonthlyReport();const blob=makeMonthlyPdfBytes(),m=+document.getElementById("reportMonth").value,y=currentYear(),name=`Control_Autonomo_${y}_${String(m).padStart(2,"0")}.pdf`;await downloadFileCompat(blob,name)}catch(e){console.error(e);alert("No se pudo descargar el PDF en este dispositivo.")}}
 async function saveMonthlyPDF(){
  try{
   buildMonthlyReport();
-  const blob=makeMonthlyPdfBytes(),m=+document.getElementById("reportMonth").value,y=currentYear(),name=`Mis_Cuentas_PRO_${y}_${String(m).padStart(2,"0")}.pdf`;
+  const blob=makeMonthlyPdfBytes(),m=+document.getElementById("reportMonth").value,y=currentYear(),name=`Control_Autonomo_${y}_${String(m).padStart(2,"0")}.pdf`;
+  if(window.AndroidFiles && typeof window.AndroidFiles.saveFile==="function"){await downloadFileCompat(blob,name);return}
   const file=new File([blob],name,{type:"application/pdf"});
   if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:name});return}
   await downloadFileCompat(blob,name);
-  alert("Tu Android no ofrece el selector de compartir desde esta WebView. El PDF se ha enviado al gestor de descargas.");
- }catch(e){if(e&&e.name==="AbortError")return;console.error(e);alert("No se pudo abrir el selector para guardar/compartir. Prueba con Descargar PDF.")}
+ }catch(e){if(e&&e.name==="AbortError")return;console.error(e);alert("No se pudo guardar/compartir el PDF.")}
 }
 function printMonthlyReport(){
  buildMonthlyReport();
  const preview=document.getElementById("pdfPreviewOverlay");
- if(preview) preview.style.display="none";
+ if(preview)preview.style.display="none";
  setTimeout(()=>{
-   try{
-     if(window.AndroidPrint && typeof window.AndroidPrint.printPage === "function"){
-       window.AndroidPrint.printPage();
-     }else{
-       window.print();
-     }
-   } finally {
-     if(preview) setTimeout(()=>preview.style.display="block",800);
-   }
+  try{if(window.AndroidPrint&&typeof window.AndroidPrint.printPage==="function")window.AndroidPrint.printPage();else window.print()}
+  finally{if(preview)setTimeout(()=>preview.style.display="block",800)}
  },150);
 }
 function saveSettings(){data.settings.owner=owner.value.trim();data.settings.irpf=+irpf.value||20;save();alert("Guardado")}
 async function exportData(){try{const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});await downloadFileCompat(blob,"mis_cuentas_pro_copia.json")}catch(e){console.error(e);alert("No se pudo exportar la copia en este dispositivo.")}}
-function importData(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{const imported=MCPStore.validate(JSON.parse(r.result));if(!confirm("¿Sustituir los datos actuales por esta copia? Se conservará una copia de recuperación."))return;MCPStore.backup(data,"antes_importar");data=imported;save();owner.value=data.settings?.owner||"";irpf.value=data.settings?.irpf??20;alert("Copia importada")}catch{alert("Archivo no válido")}};r.readAsText(f)}
+function importData(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{const imported=CAStore.validate(JSON.parse(r.result));if(!confirm("¿Sustituir los datos actuales por esta copia? Se conservará una copia de recuperación."))return;CAStore.backup(data,"antes_importar");data=imported;save();owner.value=data.settings?.owner||"";irpf.value=data.settings?.irpf??20;alert("Copia importada")}catch{alert("Archivo no válido")}};r.readAsText(f)}
 init();
 async function hashPin(v){let b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
-async function setPin(){let v=(pinNew.value||"").trim();if(!/^\d{4,8}$/.test(v)){alert("El PIN debe tener entre 4 y 8 cifras.");return}localStorage.setItem("mcp_pin_hash",await hashPin(v));pinNew.value="";alert("PIN activado en este dispositivo.")}
-function removePin(){if(confirm("¿Quitar la protección por PIN?")){localStorage.removeItem("mcp_pin_hash");alert("PIN desactivado.")}}
-async function unlockApp(){if(await hashPin(pinEntry.value)===localStorage.getItem("mcp_pin_hash")){lockScreen.style.display="none";pinEntry.value="";pinError.textContent=""}else pinError.textContent="PIN incorrecto."}
-window.addEventListener("load",()=>{if(localStorage.getItem("mcp_pin_hash"))lockScreen.style.display="flex";if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{})});
+async function setPin(){let v=(pinNew.value||"").trim();if(!/^\d{4,8}$/.test(v)){alert("El PIN debe tener entre 4 y 8 cifras.");return}localStorage.setItem("ca_pin_hash",await hashPin(v));pinNew.value="";alert("PIN activado en este dispositivo.")}
+function removePin(){if(confirm("¿Quitar la protección por PIN?")){localStorage.removeItem("ca_pin_hash");alert("PIN desactivado.")}}
+async function unlockApp(){if(await hashPin(pinEntry.value)===localStorage.getItem("ca_pin_hash")){lockScreen.style.display="none";pinEntry.value="";pinError.textContent=""}else pinError.textContent="PIN incorrecto."}
+window.addEventListener("load",()=>{if(localStorage.getItem("ca_pin_hash"))lockScreen.style.display="flex";if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{})});
 
 
 // Integración con el botón/gesto Atrás de Android.
 // Conserva una entrada de historial dentro de la app para poder preguntar antes de cerrarla.
 function initAndroidBackNavigation(){
- history.replaceState({mcp:true,page:"exit"},"",location.href);
- history.pushState({mcp:true,page:"home"},"",location.href);
+ history.replaceState({ca:true,page:"exit"},"",location.href);
+ history.pushState({ca:true,page:"home"},"",location.href);
  window.addEventListener("popstate",()=>{
    const preview=document.getElementById("pdfPreviewOverlay");
-   if(preview){preview.remove();history.pushState({mcp:true,page:document.querySelector(".page.active")?.id||"home"},"",location.href);return}
+   if(preview){preview.remove();history.pushState({ca:true,page:document.querySelector(".page.active")?.id||"home"},"",location.href);return}
    const active=document.querySelector(".page.active")?.id||"home";
    if(active!=="home"){
      handlingAndroidBack=true;activatePage("home");handlingAndroidBack=false;
-     history.pushState({mcp:true,page:"home"},"",location.href);
+     history.pushState({ca:true,page:"home"},"",location.href);
      return;
    }
-   if(confirm("¿Quieres salir de Mis Cuentas PRO?")){
+   if(confirm("¿Quieres salir de Control Autónomo?")){
      history.back();
    }else{
-     history.pushState({mcp:true,page:"home"},"",location.href);
+     history.pushState({ca:true,page:"home"},"",location.href);
    }
  });
 }
 initAndroidBackNavigation();
 
 async function shareApp(){
- const info={title:"Mis Cuentas PRO",text:"Mis Cuentas PRO - control de ingresos, gastos, IVA, IRPF, gestoría y caja/banco.",url:window.AndroidPrint?"https://mis-cuentas-pro-b565d.web.app/":location.origin+"/"};
+ const info={title:"Control Autónomo",text:"Control Autónomo - control de ingresos, gastos, IVA, IRPF, gestoría y caja/banco.",url:location.origin+"/"};
  try{
    if(navigator.share){await navigator.share(info)}
    else if(navigator.clipboard){await navigator.clipboard.writeText(info.url);alert("Enlace copiado. Ya puedes pegarlo en WhatsApp.")}
@@ -221,5 +234,3 @@ function updateFabForPage(){
 }
 document.addEventListener("click",()=>setTimeout(updateFabForPage,0));
 window.addEventListener("load",updateFabForPage);
-
-function newRecordId(){let id;do{id=Date.now()*1000+crypto.getRandomValues(new Uint32Array(1))[0]%1000}while(data.movements.some(x=>x.id===id)||data.bank.some(x=>x.id===id));return id}
