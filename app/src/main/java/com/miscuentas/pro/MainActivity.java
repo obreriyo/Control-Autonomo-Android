@@ -34,6 +34,13 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         webView = new WebView(this);
         setContentView(webView);
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                this::onBackPressed
+            );
+        }
+
 
         webView.setOnApplyWindowInsetsListener((v, insets) -> {
             int left;
@@ -112,6 +119,17 @@ public class MainActivity extends Activity {
                     WebResourceRequest request
             ) {
                 String url = request.getUrl().toString();
+                if (request.isForMainFrame() && (url.equals("mailto:raulito-sp@hotmail.com") || url.startsWith("mailto:raulito-sp@hotmail.com?"))) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse(url)));
+                    } catch (android.content.ActivityNotFoundException e) {
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setMessage("Escribe a raulito-sp@hotmail.com desde tu correo. Asunto: Eliminar cuenta Control Autónomo.")
+                            .setPositiveButton("Aceptar", null).show();
+                    }
+                    return true;
+                }
+
 
                 return !url.equals(HOME)
                         && !(migrating && url.equals(OLD));
@@ -417,7 +435,7 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         webView.evaluateJavascript(
-                "(function(){var o=document.getElementById('pdfPreviewOverlay');"
+                "(function(){var d=document.querySelector('dialog[open]');if(d){d.close();return 'preview';}var o=document.getElementById('pdfPreviewOverlay');"
                         + "if(o){o.remove();return 'preview';}"
                         + "var p=document.querySelector('.page.active');return p?p.id:'home';})()",
                 value -> {
