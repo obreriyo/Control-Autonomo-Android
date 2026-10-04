@@ -1,73 +1,152 @@
-name: Añadir ojo a la contraseña
-
+name: Preparar privacidad y cuentas para Google Play
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   actualizar:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-
-      - name: Añadir botón y actualizar versión
+      - name: Preparar versión 1.0.4
         run: |
-          python3 - <<'PY'
+          python3 - <<'PYUPDATE'
           from pathlib import Path
-
-          p = Path('app/src/main/assets/index.html')
-          s = p.read_text()
-          old = '<input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Al menos 6 caracteres">'
-          new = '''<div style="position:relative">
-          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Al menos 6 caracteres" style="padding-right:56px">
-          <button id="passwordEye" type="button" aria-label="Mostrar contraseña" aria-controls="authPassword" aria-pressed="false"
-          style="position:absolute;right:4px;top:6px;width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:#5f6874;cursor:pointer;display:grid;place-items:center"
-          onclick="const p=document.getElementById('authPassword');const show=p.type==='password';p.type=show?'text':'password';this.setAttribute('aria-pressed',String(show));this.setAttribute('aria-label',show?'Ocultar contraseña':'Mostrar contraseña');this.querySelector('line').style.display=show?'':'none';">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/>
-          <circle cx="12" cy="12" r="3"/>
-          <line x1="3" y1="3" x2="21" y2="21" style="display:none"/>
-          </svg></button></div>'''
-
-          if 'id="passwordEye"' not in s:
-              if old not in s:
-                  raise SystemExit('No se encuentra el campo de contraseña; no se han guardado cambios.')
-              s = s.replace(old, new, 1)
-
-          p.write_text(s.replace('1.0.2', '1.0.3'))
-
-          p = Path('app/src/main/assets/sw.js')
-          p.write_text(p.read_text().replace('v1.0.2', 'v1.0.3'))
-
-          p = Path('app/build.gradle')
-          s = p.read_text()
-          s = s.replace('versionCode 3', 'versionCode 4')
-          s = s.replace("versionName '1.0.2'", "versionName '1.0.3'")
+          import re
+          
+          root = Path('.')
+          assets = root / 'app/src/main/assets'
+          email = 'raulito-sp@hotmail.com'
+          privacy = '''<h2>Privacidad de Control Autónomo</h2><p>Actualizada: 4 de octubre de 2026.</p>
+          <p>Responsable: Raúl Sánchez Perea. Contacto: raulito-sp@hotmail.com.</p>
+          <h3>Datos y finalidad</h3><p>En modo local, los movimientos, caja/banco, nombre del negocio y ajustes se guardan en este dispositivo. Al crear una cuenta, Firebase Authentication gestiona el correo, las credenciales y el identificador de usuario. Al sincronizar, Firebase Cloud Firestore almacena tus movimientos, importes, conceptos, fechas, ajustes y revisiones para recuperar tu copia y usarla en otros dispositivos.</p>
+          <p>La cuenta y la sincronización son opcionales. Tratamos estos datos para prestar el servicio que solicitas. Los mensajes de soporte se utilizan para atender tu consulta y comprobar la titularidad de una cuenta cuando solicitas su eliminación.</p>
+          <h3>Proveedores y seguridad</h3><p>Usamos Firebase, de Google, para autenticación y almacenamiento. La base de datos de este proyecto está configurada en Europa (eur3). Firebase Authentication se presta desde Estados Unidos; las transferencias internacionales se rigen por las condiciones y garantías aplicables de Google. Firebase también trata direcciones IP y datos técnicos del navegador o dispositivo para prestar el servicio y prevenir abusos. Las comunicaciones con Firebase utilizan HTTPS. No incorporamos anuncios ni el SDK de Google Analytics a esta versión.</p>
+          <p>La copia local se guarda en el almacenamiento de la aplicación; el PIN opcional es un bloqueo de acceso, no cifra los archivos. Protege tu dispositivo y las copias JSON o PDF que exportes. No incluyas información sensible de terceros en los conceptos si no es necesaria.</p>
+          <p>Las páginas públicas de soporte y privacidad previstas se alojarán en GitHub Pages, cuyo proveedor puede registrar datos técnicos de las visitas, como la dirección IP, para servir las páginas y proteger su infraestructura.</p>
+          <h3>Conservación y eliminación</h3><p>Los datos sincronizados permanecen hasta que solicites su eliminación. Puedes solicitar borrar la cuenta y todos sus datos de la nube escribiendo desde el correo de la cuenta a raulito-sp@hotmail.com con el asunto «Eliminar cuenta Control Autónomo». Verificaremos la titularidad y atenderemos la solicitud en un plazo de 30 días, salvo que exista una obligación legal de conservación, que te explicaremos.</p>
+          <p>La solicitud se atiende manualmente. Abrir el correo o cerrar sesión no elimina datos. Los archivos que hayas exportado, compartido o guardado en otros dispositivos no se borran a distancia. Para eliminar las copias locales, borra el almacenamiento de la app en los ajustes de Android en cada dispositivo y elimina los archivos exportados que ya no quieras conservar.</p>
+          <p>Según la documentación de Firebase, los registros de IP de Authentication se conservan unas semanas y la eliminación de información de autenticación de sus sistemas activos y copias internas puede tardar hasta 180 días después de solicitar el borrado. Los mensajes de soporte se conservan mientras se gestiona la consulta o solicitud y se eliminan después de cerrarla, salvo una obligación legal que te comunicaremos.</p>
+          <h3>Tus derechos</h3><p>Puedes solicitar acceso, rectificación, supresión, portabilidad, oposición o limitación escribiendo al correo de contacto. También puedes presentar una reclamación ante la Agencia Española de Protección de Datos. Puedes exportar tus datos desde Ajustes. La app no está dirigida a menores.</p>'''
+          delete = '''<h2>Eliminar cuenta y datos de Control Autónomo</h2><p>Puedes solicitarlo aunque hayas desinstalado la aplicación.</p>
+          <ol><li>Escribe desde el correo asociado a tu cuenta a <strong>raulito-sp@hotmail.com</strong>.</li><li>Usa el asunto <strong>Eliminar cuenta Control Autónomo</strong> y confirma que deseas borrar la cuenta y sus datos sincronizados.</li><li>Verificaremos que eres su titular y te confirmaremos la eliminación. El plazo de atención es de 30 días, salvo una obligación legal de conservación que te explicaremos.</li></ol>
+          <p>Se eliminan el usuario de Firebase Authentication y sus datos de Firestore: movimientos, caja/banco, nombre del negocio, ajustes y copias sincronizadas asociadas. La solicitud se atiende manualmente: preparar o enviar el correo no produce un borrado automático.</p>
+          <p>No envíes tu contraseña, documentos financieros ni copias de seguridad. No necesitas pagar ni reinstalar la app. Exporta antes lo que quieras conservar: la eliminación de la nube es definitiva.</p>
+          <p>Los archivos exportados y las copias locales en tus dispositivos no se borran a distancia. Después de la confirmación, borra el almacenamiento de la app desde los ajustes de Android en cada dispositivo y elimina los archivos exportados que no desees conservar.</p>
+          <p><a class="button" href="mailto:raulito-sp@hotmail.com?subject=Eliminar%20cuenta%20Control%20Aut%C3%B3nomo">Preparar correo de solicitud</a></p><p>Si el botón no abre tu correo, escribe manualmente a la dirección indicada. Debes enviar el mensaje para completar la solicitud.</p>'''
+          style = 'body{font:17px/1.6 system-ui,sans-serif;margin:0;background:#f7f8fb;color:#141820}main{max-width:760px;margin:auto;padding:24px}a{color:#075eae;overflow-wrap:anywhere}.button{display:inline-block;padding:12px 18px;border-radius:12px;background:#1477f8;color:white}h1,h2,h3{line-height:1.25}nav{display:flex;gap:20px;flex-wrap:wrap}p,li{overflow-wrap:anywhere}'
+          def page(title, body):
+              return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+title+'</title><style>'+style+'</style></head><body><main><h1>Control Autónomo</h1><nav><a href="privacidad.html">Privacidad</a><a href="eliminar-cuenta.html">Eliminar cuenta</a></nav>'+body+'</main></body></html>'
+          docs = root/'docs'
+          docs.mkdir(exist_ok=True)
+          (docs/'privacidad.html').write_text(page('Privacidad · Control Autónomo',privacy))
+          (docs/'eliminar-cuenta.html').write_text(page('Eliminar cuenta · Control Autónomo',delete))
+          (docs/'index.html').write_text(page('Control Autónomo · Soporte','<h2>Soporte</h2><p>Contacta con raulito-sp@hotmail.com para consultas sobre la aplicación.</p>'))
+          (docs/'.nojekyll').write_text('')
+          
+          p=assets/'index.html';s=p.read_text()
+          if 'id="privacyDialog"' not in s:
+              marker='<div class="section">Aplicación</div>'
+              if marker not in s: raise SystemExit('No se encuentra la sección Aplicación.')
+              s=s.replace(marker,marker+'<button class="secondary" type="button" onclick="document.getElementById(\'privacyDialog\').showModal()">Privacidad y contacto</button><button class="secondary" type="button" onclick="document.getElementById(\'deleteAccountDialog\').showModal()">Solicitar eliminación de cuenta y datos</button>',1)
+              dialogs=''
+              for ident,body in [('privacyDialog',privacy),('deleteAccountDialog',delete)]:
+                  dialogs+='<dialog id="'+ident+'" aria-label="'+('Privacidad' if ident=='privacyDialog' else 'Eliminar cuenta y datos')+'" style="border:0;border-radius:22px;width:min(92%,700px);padding:22px;max-height:85vh;overflow:auto">'+body+'<button class="secondary" type="button" onclick="this.closest(\'dialog\').close()">Cerrar</button></dialog>'
+              s=s.replace('</body>',dialogs+'</body>')
+              s=s.replace('</style>', '.app dialog p,.app dialog li,dialog p,dialog li{font-size:15px;line-height:1.6;overflow-wrap:anywhere}dialog a{color:#075eae;overflow-wrap:anywhere}</style>',1)
+          for ident,body in [('privacyDialog',privacy),('deleteAccountDialog',delete)]:
+              pattern = r'(<dialog id="'+ident+r'"[^>]*>).*?(<button class="secondary" type="button" onclick="this.closest.*?</dialog>)'
+              s=re.sub(pattern,lambda m:m.group(1)+body+m.group(2),s,flags=re.S)
+          s=s.replace('1.0.3','1.0.4');p.write_text(s)
+          p=assets/'sw.js';p.write_text(p.read_text().replace('v1.0.3','v1.0.4'))
+          
+          p=root/'app/src/main/java/com/miscuentas/pro/MainActivity.java';s=p.read_text()
+          marker='                String url = request.getUrl().toString();'
+          if 'mailto:raulito-sp@hotmail.com' not in s:
+              if marker not in s: raise SystemExit('No se encuentra la navegación de Android.')
+              s=s.replace(marker,marker+'''
+                          if (request.isForMainFrame() && (url.equals("mailto:raulito-sp@hotmail.com") || url.startsWith("mailto:raulito-sp@hotmail.com?"))) {
+                              try {
+                                  startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse(url)));
+                              } catch (android.content.ActivityNotFoundException e) {
+                                  new AlertDialog.Builder(MainActivity.this)
+                                      .setMessage("Escribe a raulito-sp@hotmail.com desde tu correo. Asunto: Eliminar cuenta Control Autónomo.")
+                                      .setPositiveButton("Aceptar", null).show();
+                              }
+                              return true;
+                          }
+          ''',1)
+          # Android 16 no longer dispatches the legacy Activity.onBackPressed override.
+          marker='        setContentView(webView);'
+          if 'registerOnBackInvokedCallback' not in s:
+              s=s.replace(marker,marker+'''
+                  if (Build.VERSION.SDK_INT >= 33) {
+                      getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                          android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                          this::onBackPressed
+                      );
+                  }
+          ''',1)
+          marker='"(function(){var o=document.getElementById(\'pdfPreviewOverlay\');"'
+          if 'dialog[open]' not in s:
+              if marker not in s: raise SystemExit('No se encuentra el botón Atrás.')
+              s=s.replace(marker,'"(function(){var d=document.querySelector(\'dialog[open]\');if(d){d.close();return \'preview\';}var o=document.getElementById(\'pdfPreviewOverlay\');"',1)
           p.write_text(s)
-          PY
-
+          # Prevent Android cloud backup from copying financial data or login sessions.
+          p=root/'app/src/main/AndroidManifest.xml';p.write_text(p.read_text().replace('android:allowBackup="true"','android:allowBackup="false"'))
+          p=root/'app/build.gradle';s=p.read_text();s=s.replace('versionCode 4','versionCode 5').replace("versionName '1.0.3'","versionName '1.0.4'")
+          if 'PLAY_STORE_FILE' not in s:
+              s+='''
+          // Upload-key credentials come from the build environment, never from git.
+          android {
+              signingConfigs {
+                  release {
+                      if (System.getenv('PLAY_STORE_FILE')) {
+                          storeFile file(System.getenv('PLAY_STORE_FILE'))
+                          storePassword System.getenv('PLAY_STORE_PASSWORD')
+                          keyAlias System.getenv('PLAY_KEY_ALIAS')
+                          keyPassword System.getenv('PLAY_KEY_PASSWORD')
+                      }
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                      debuggable false
+                  }
+              }
+          }
+          '''
+          p.write_text(s)
+          p=root/'.gitignore';s=p.read_text() if p.exists() else ''
+          for line in ['*.jks','*.keystore']:
+              if line not in s:s+='\n'+line+'\n'
+          p.write_text(s)
+          
+          p=Path('tools/play-store/prepare.py');p.parent.mkdir(parents=True,exist_ok=True);p.write_text('from pathlib import Path\nimport re\n\nroot = Path(\'.\')\nassets = root / \'app/src/main/assets\'\nemail = \'raulito-sp@hotmail.com\'\nprivacy = \'\'\'<h2>Privacidad de Control Autónomo</h2><p>Actualizada: 4 de octubre de 2026.</p>\n<p>Responsable: Raúl Sánchez Perea. Contacto: raulito-sp@hotmail.com.</p>\n<h3>Datos y finalidad</h3><p>En modo local, los movimientos, caja/banco, nombre del negocio y ajustes se guardan en este dispositivo. Al crear una cuenta, Firebase Authentication gestiona el correo, las credenciales y el identificador de usuario. Al sincronizar, Firebase Cloud Firestore almacena tus movimientos, importes, conceptos, fechas, ajustes y revisiones para recuperar tu copia y usarla en otros dispositivos.</p>\n<p>La cuenta y la sincronización son opcionales. Tratamos estos datos para prestar el servicio que solicitas. Los mensajes de soporte se utilizan para atender tu consulta y comprobar la titularidad de una cuenta cuando solicitas su eliminación.</p>\n<h3>Proveedores y seguridad</h3><p>Usamos Firebase, de Google, para autenticación y almacenamiento. La base de datos de este proyecto está configurada en Europa (eur3). Firebase Authentication se presta desde Estados Unidos; las transferencias internacionales se rigen por las condiciones y garantías aplicables de Google. Firebase también trata direcciones IP y datos técnicos del navegador o dispositivo para prestar el servicio y prevenir abusos. Las comunicaciones con Firebase utilizan HTTPS. No incorporamos anuncios ni el SDK de Google Analytics a esta versión.</p>\n<p>La copia local se guarda en el almacenamiento de la aplicación; el PIN opcional es un bloqueo de acceso, no cifra los archivos. Protege tu dispositivo y las copias JSON o PDF que exportes. No incluyas información sensible de terceros en los conceptos si no es necesaria.</p>\n<p>Las páginas públicas de soporte y privacidad previstas se alojarán en GitHub Pages, cuyo proveedor puede registrar datos técnicos de las visitas, como la dirección IP, para servir las páginas y proteger su infraestructura.</p>\n<h3>Conservación y eliminación</h3><p>Los datos sincronizados permanecen hasta que solicites su eliminación. Puedes solicitar borrar la cuenta y todos sus datos de la nube escribiendo desde el correo de la cuenta a raulito-sp@hotmail.com con el asunto «Eliminar cuenta Control Autónomo». Verificaremos la titularidad y atenderemos la solicitud en un plazo de 30 días, salvo que exista una obligación legal de conservación, que te explicaremos.</p>\n<p>La solicitud se atiende manualmente. Abrir el correo o cerrar sesión no elimina datos. Los archivos que hayas exportado, compartido o guardado en otros dispositivos no se borran a distancia. Para eliminar las copias locales, borra el almacenamiento de la app en los ajustes de Android en cada dispositivo y elimina los archivos exportados que ya no quieras conservar.</p>\n<p>Según la documentación de Firebase, los registros de IP de Authentication se conservan unas semanas y la eliminación de información de autenticación de sus sistemas activos y copias internas puede tardar hasta 180 días después de solicitar el borrado. Los mensajes de soporte se conservan mientras se gestiona la consulta o solicitud y se eliminan después de cerrarla, salvo una obligación legal que te comunicaremos.</p>\n<h3>Tus derechos</h3><p>Puedes solicitar acceso, rectificación, supresión, portabilidad, oposición o limitación escribiendo al correo de contacto. También puedes presentar una reclamación ante la Agencia Española de Protección de Datos. Puedes exportar tus datos desde Ajustes. La app no está dirigida a menores.</p>\'\'\'\ndelete = \'\'\'<h2>Eliminar cuenta y datos de Control Autónomo</h2><p>Puedes solicitarlo aunque hayas desinstalado la aplicación.</p>\n<ol><li>Escribe desde el correo asociado a tu cuenta a <strong>raulito-sp@hotmail.com</strong>.</li><li>Usa el asunto <strong>Eliminar cuenta Control Autónomo</strong> y confirma que deseas borrar la cuenta y sus datos sincronizados.</li><li>Verificaremos que eres su titular y te confirmaremos la eliminación. El plazo de atención es de 30 días, salvo una obligación legal de conservación que te explicaremos.</li></ol>\n<p>Se eliminan el usuario de Firebase Authentication y sus datos de Firestore: movimientos, caja/banco, nombre del negocio, ajustes y copias sincronizadas asociadas. La solicitud se atiende manualmente: preparar o enviar el correo no produce un borrado automático.</p>\n<p>No envíes tu contraseña, documentos financieros ni copias de seguridad. No necesitas pagar ni reinstalar la app. Exporta antes lo que quieras conservar: la eliminación de la nube es definitiva.</p>\n<p>Los archivos exportados y las copias locales en tus dispositivos no se borran a distancia. Después de la confirmación, borra el almacenamiento de la app desde los ajustes de Android en cada dispositivo y elimina los archivos exportados que no desees conservar.</p>\n<p><a class="button" href="mailto:raulito-sp@hotmail.com?subject=Eliminar%20cuenta%20Control%20Aut%C3%B3nomo">Preparar correo de solicitud</a></p><p>Si el botón no abre tu correo, escribe manualmente a la dirección indicada. Debes enviar el mensaje para completar la solicitud.</p>\'\'\'\nstyle = \'body{font:17px/1.6 system-ui,sans-serif;margin:0;background:#f7f8fb;color:#141820}main{max-width:760px;margin:auto;padding:24px}a{color:#075eae;overflow-wrap:anywhere}.button{display:inline-block;padding:12px 18px;border-radius:12px;background:#1477f8;color:white}h1,h2,h3{line-height:1.25}nav{display:flex;gap:20px;flex-wrap:wrap}p,li{overflow-wrap:anywhere}\'\ndef page(title, body):\n    return \'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>\'+title+\'</title><style>\'+style+\'</style></head><body><main><h1>Control Autónomo</h1><nav><a href="privacidad.html">Privacidad</a><a href="eliminar-cuenta.html">Eliminar cuenta</a></nav>\'+body+\'</main></body></html>\'\ndocs = root/\'docs\'\ndocs.mkdir(exist_ok=True)\n(docs/\'privacidad.html\').write_text(page(\'Privacidad · Control Autónomo\',privacy))\n(docs/\'eliminar-cuenta.html\').write_text(page(\'Eliminar cuenta · Control Autónomo\',delete))\n(docs/\'index.html\').write_text(page(\'Control Autónomo · Soporte\',\'<h2>Soporte</h2><p>Contacta con raulito-sp@hotmail.com para consultas sobre la aplicación.</p>\'))\n(docs/\'.nojekyll\').write_text(\'\')\n\np=assets/\'index.html\';s=p.read_text()\nif \'id="privacyDialog"\' not in s:\n    marker=\'<div class="section">Aplicación</div>\'\n    if marker not in s: raise SystemExit(\'No se encuentra la sección Aplicación.\')\n    s=s.replace(marker,marker+\'<button class="secondary" type="button" onclick="document.getElementById(\\\'privacyDialog\\\').showModal()">Privacidad y contacto</button><button class="secondary" type="button" onclick="document.getElementById(\\\'deleteAccountDialog\\\').showModal()">Solicitar eliminación de cuenta y datos</button>\',1)\n    dialogs=\'\'\n    for ident,body in [(\'privacyDialog\',privacy),(\'deleteAccountDialog\',delete)]:\n        dialogs+=\'<dialog id="\'+ident+\'" aria-label="\'+(\'Privacidad\' if ident==\'privacyDialog\' else \'Eliminar cuenta y datos\')+\'" style="border:0;border-radius:22px;width:min(92%,700px);padding:22px;max-height:85vh;overflow:auto">\'+body+\'<button class="secondary" type="button" onclick="this.closest(\\\'dialog\\\').close()">Cerrar</button></dialog>\'\n    s=s.replace(\'</body>\',dialogs+\'</body>\')\n    s=s.replace(\'</style>\', \'.app dialog p,.app dialog li,dialog p,dialog li{font-size:15px;line-height:1.6;overflow-wrap:anywhere}dialog a{color:#075eae;overflow-wrap:anywhere}</style>\',1)\nfor ident,body in [(\'privacyDialog\',privacy),(\'deleteAccountDialog\',delete)]:\n    pattern = r\'(<dialog id="\'+ident+r\'"[^>]*>).*?(<button class="secondary" type="button" onclick="this.closest.*?</dialog>)\'\n    s=re.sub(pattern,lambda m:m.group(1)+body+m.group(2),s,flags=re.S)\ns=s.replace(\'1.0.3\',\'1.0.4\');p.write_text(s)\np=assets/\'sw.js\';p.write_text(p.read_text().replace(\'v1.0.3\',\'v1.0.4\'))\n\np=root/\'app/src/main/java/com/miscuentas/pro/MainActivity.java\';s=p.read_text()\nmarker=\'                String url = request.getUrl().toString();\'\nif \'mailto:raulito-sp@hotmail.com\' not in s:\n    if marker not in s: raise SystemExit(\'No se encuentra la navegación de Android.\')\n    s=s.replace(marker,marker+\'\'\'\n                if (request.isForMainFrame() && (url.equals("mailto:raulito-sp@hotmail.com") || url.startsWith("mailto:raulito-sp@hotmail.com?"))) {\n                    try {\n                        startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse(url)));\n                    } catch (android.content.ActivityNotFoundException e) {\n                        new AlertDialog.Builder(MainActivity.this)\n                            .setMessage("Escribe a raulito-sp@hotmail.com desde tu correo. Asunto: Eliminar cuenta Control Autónomo.")\n                            .setPositiveButton("Aceptar", null).show();\n                    }\n                    return true;\n                }\n\'\'\',1)\n# Android 16 no longer dispatches the legacy Activity.onBackPressed override.\nmarker=\'        setContentView(webView);\'\nif \'registerOnBackInvokedCallback\' not in s:\n    s=s.replace(marker,marker+\'\'\'\n        if (Build.VERSION.SDK_INT >= 33) {\n            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(\n                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,\n                this::onBackPressed\n            );\n        }\n\'\'\',1)\nmarker=\'"(function(){var o=document.getElementById(\\\'pdfPreviewOverlay\\\');"\'\nif \'dialog[open]\' not in s:\n    if marker not in s: raise SystemExit(\'No se encuentra el botón Atrás.\')\n    s=s.replace(marker,\'"(function(){var d=document.querySelector(\\\'dialog[open]\\\');if(d){d.close();return \\\'preview\\\';}var o=document.getElementById(\\\'pdfPreviewOverlay\\\');"\',1)\np.write_text(s)\n# Prevent Android cloud backup from copying financial data or login sessions.\np=root/\'app/src/main/AndroidManifest.xml\';p.write_text(p.read_text().replace(\'android:allowBackup="true"\',\'android:allowBackup="false"\'))\np=root/\'app/build.gradle\';s=p.read_text();s=s.replace(\'versionCode 4\',\'versionCode 5\').replace("versionName \'1.0.3\'","versionName \'1.0.4\'")\nif \'PLAY_STORE_FILE\' not in s:\n    s+=\'\'\'\n// Upload-key credentials come from the build environment, never from git.\nandroid {\n    signingConfigs {\n        release {\n            if (System.getenv(\'PLAY_STORE_FILE\')) {\n                storeFile file(System.getenv(\'PLAY_STORE_FILE\'))\n                storePassword System.getenv(\'PLAY_STORE_PASSWORD\')\n                keyAlias System.getenv(\'PLAY_KEY_ALIAS\')\n                keyPassword System.getenv(\'PLAY_KEY_PASSWORD\')\n            }\n        }\n    }\n    buildTypes {\n        release {\n            signingConfig signingConfigs.release\n            debuggable false\n        }\n    }\n}\n\'\'\'\np.write_text(s)\np=root/\'.gitignore\';s=p.read_text() if p.exists() else \'\'\nfor line in [\'*.jks\',\'*.keystore\']:\n    if line not in s:s+=\'\\n\'+line+\'\\n\'\np.write_text(s)\n')
+          
+          p=Path('tools/play-store/LEEME.md');p.parent.mkdir(parents=True,exist_ok=True);p.write_text('# Preparación de Control Autónomo para Google Play\n\nContacto confirmado: raulito-sp@hotmail.com. Versión preparada: 1.0.4 (5).\n\n## Solicitudes de eliminación\n\nLa aplicación ofrece una solicitud por correo, no una eliminación automática. Debes atender la bandeja de soporte y completar cada solicitud en un plazo de 30 días. No solicites contraseñas ni documentos financieros.\n\n1. Verifica la titularidad mediante una respuesta desde el correo registrado. Si el mensaje procede de otro correo, pide confirmación al correo registrado antes de borrar nada. No uses solo un UID proporcionado en el mensaje.\n2. Localiza el usuario en Firebase Authentication del proyecto `control-autonomo`. Anota su UID exacto. Comprueba con el titular que comprende que sus datos sincronizados se borrarán definitivamente y que ha exportado lo que desea conservar.\n3. Elimina el usuario de Authentication. Espera al menos 75 minutos antes del borrado final de Firestore: los tokens ya emitidos pueden vivir aproximadamente una hora y un dispositivo antiguo podría escribir con uno de ellos.\n4. Elimina TODO el árbol `users/UID` de Firestore, incluidas las subcolecciones. No basta borrar un documento padre. Con Firebase CLI autenticada como administrador, sustituye UID por el valor comprobado y ejecuta `firebase firestore:delete users/UID --recursive --project control-autonomo`. Revisa la ruta y confirma solo esa cuenta.\n5. Comprueba que ya no existen ni el usuario de Authentication ni documentos/subcolecciones bajo ese UID. Confirma la eliminación por correo. Indica al titular que borre las copias locales en los ajustes de Android de cada dispositivo y las exportaciones que ya no desee conservar. No borres datos de otras cuentas.\n6. Elimina después los mensajes de soporte cuando se cierre la solicitud, salvo obligación legal comunicada. Los sistemas internos de Firebase tienen sus propios plazos de purga, explicados en la privacidad.\n\n## Páginas públicas\n\nActiva GitHub Pages desde la rama `main` y la carpeta `/docs`. Verifica, sin iniciar sesión, que cargan:\n\n- https://obreriyo.github.io/Control-Autonomo-Android/privacidad.html\n- https://obreriyo.github.io/Control-Autonomo-Android/eliminar-cuenta.html\n\nEstos enlaces están previstos: todavía deben publicarse y comprobarse. No los declares operativos en Play Console hasta hacerlo. La privacidad también se puede consultar sin conexión desde Ajustes de la app.\n\n## Clave de carga y AAB\n\nEl flujo `publicar-play-store.yml` se detendrá hasta configurar una clave de carga privada. No uses la firma debug para publicar ni guardes contraseñas o archivos JKS en el repositorio.\n\nEn un equipo de confianza con Java, genera una clave mediante `keytool -genkeypair -keystore control-autonomo-upload.jks -alias upload -keyalg RSA -keysize 3072 -validity 10000`. Introduce la contraseña de forma interactiva. Conserva una copia privada del JKS y su contraseña. Configura los secretos de GitHub `PLAY_KEYSTORE_BASE64` (JKS convertido a base64), `PLAY_STORE_PASSWORD`, `PLAY_KEY_ALIAS` (`upload`) y `PLAY_KEY_PASSWORD`.\n\nEl flujo valida el código, compila `bundleRelease`, comprueba la firma y publica únicamente el AAB como artefacto. El JKS temporal se elimina al terminar. No se sube nada automáticamente a Google Play.\n\nLa firma de Google Play puede ser distinta de la APK debug instalada. Exporta antes tus datos de pruebas; no prometas una actualización directa de la APK debug a Play sin comprobar los certificados.\n\n## Comprobaciones antes de publicar\n\n- Compilar en GitHub la APK 1.0.4 y probar login, ojo, recuperación, modo local, PDF, copias y restauración.\n- Probar sincronización real entre dos dispositivos, incluidos conflictos y cambios sin conexión.\n- Probar Atrás y barras del sistema en Android 16 y en el móvil actual.\n- Probar Privacidad, solicitud por correo y alternativa si no hay app de correo. Abrir el correo no equivale a enviar una solicitud.\n- Probar el procedimiento de borrado con una cuenta de prueba y verificar que no afecta a otra cuenta.\n- Publicar las páginas, generar AAB firmado, completar ficha, seguridad de datos, clasificación y acceso para revisión.\n- Crear y verificar Play Console. Para cuenta personal nueva: prueba cerrada con 12 participantes inscritos 14 días consecutivos y solicitud de acceso a producción.\n\n## Seguridad de datos: borrador para revisar en Play Console\n\nLa sincronización transmite datos; no declarar «no se recopilan datos». El registro y la nube son opcionales porque existe modo local.\n\n- Información personal: correo e ID de usuario; nombre si se introduce un nombre personal en el campo negocio. Funcionalidad, gestión de cuentas y soporte.\n- Información financiera: movimientos, ingresos/gastos e importes de caja/banco que el usuario sincroniza. Revisar «Otra información financiera» y, cuando corresponda a compras registradas, «Historial de compras».\n- Mensajes: consultas enviadas voluntariamente al correo de soporte. Atención al usuario.\n- Firebase procesa IP y user-agent para seguridad y prevención de abuso. Consultar la documentación vigente del proveedor y el formulario; no declarar acceso a ubicación GPS ni publicidad que esta versión no utiliza.\n- No hay SDK de anuncios, Analytics o Crashlytics en esta versión. Firebase es proveedor de autenticación/almacenamiento; revisar la excepción de proveedores de servicios antes de responder la pregunta sobre compartir datos.\n- HTTPS para Firebase, opción de solicitar eliminación de cuenta, datos y copias sincronizadas; los archivos exportados y las copias en otros dispositivos requieren acción del titular.\n\nNo es un formulario ya presentado ni una aprobación de Google. Revisar categorías contra el AAB final y su comportamiento.\n')
+          
+          p=Path('tests/sync.cjs');p.parent.mkdir(parents=True,exist_ok=True);p.write_text("const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');\nconst values=new Map(),els=new Map();\nconst element=id=>{if(!els.has(id))els.set(id,{value:'',textContent:'',innerHTML:'',style:{},open:false,remove(){},addEventListener(){},close(){this.open=false}});return els.get(id)};\nconst ctx=vm.createContext({console,structuredClone,TextEncoder,Blob,crypto:require('crypto').webcrypto,localStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),key:i=>[...values.keys()][i],get length(){return values.size}},document:{getElementById:element,addEventListener(){},querySelector(){return {}}},navigator:{onLine:true},owner:element('owner'),irpf:element('irpf'),confirm:()=>true,render(){},setTimeout:()=>1,clearTimeout(){},downloadFileCompat:async()=>{},firebase:{initializeApp(){throw Error('Test transport')},firestore:{FieldValue:{serverTimestamp:()=>123}}}});\nctx.window={addEventListener(){}};\nvm.runInContext(fs.readFileSync('app/src/main/assets/store.js','utf8'),ctx);\nvm.runInContext('let data=CAStore.open(null); function save(){CAStore.save(data);render();}',ctx);\nvm.runInContext(fs.readFileSync('app/src/main/assets/cloud.js','utf8'),ctx);\nvm.runInContext('authReady=true',ctx);\nconst browser=fs.readFileSync('tests/browser.cjs','utf8');\nlet body=browser.split('const results=await page.evaluate(async()=>{')[1].split('\\n });')[0].replaceAll('MCPStore','CAStore');\n(async()=>{\n const result=await vm.runInContext('(async()=>{'+body+'})()',ctx);assert.equal(result.status,'OK');\n await vm.runInContext(`(async()=>{\n cloudUser={uid:'offline'};CAStore.open('offline');refreshAccountData();data.settings.owner='Offline';save();navigator.onLine=false;await syncCloud(true);if(!CAStore.envelope.dirty)throw Error('Offline data lost');navigator.onLine=true;\n let resetEmail='';auth={sendPasswordResetEmail:async e=>resetEmail=e};$('authEmail').value='test@example.com';await accountAction('reset');if(resetEmail!=='test@example.com')throw Error('Password reset');\n })()`,ctx);\n console.log('OK: uploads, downloads, conflicts, concurrent edits, retries, account isolation, offline storage, password reset',result);\n})().catch(e=>{console.error(e);process.exit(1)});\n")
+          p=Path('tools/play-store/FICHA.md');p.parent.mkdir(parents=True,exist_ok=True);p.write_text('# Ficha propuesta para Google Play\n\nNombre: Control Autónomo\n\nDescripción breve (72 caracteres):\nControla ingresos, gastos, caja y estimaciones de impuestos de tu negocio.\n\nDescripción completa:\n\nControl Autónomo te ayuda a organizar los ingresos y gastos de tu negocio y consultar informes mensuales y anuales.\n\nRegistra movimientos con fecha, concepto, importe y los datos fiscales que correspondan. Consulta tus ingresos, gastos y movimientos de caja/banco en una interfaz adaptada al móvil.\n\nPuedes trabajar en modo local sin crear una cuenta. Si creas una cuenta con correo y contraseña, podrás sincronizar tus datos mediante Firebase y recuperar la copia de esa cuenta en otro dispositivo compatible. Sin conexión, los cambios permanecen en la copia local hasta que pueda completarse la sincronización.\n\nIncluye exportación e importación de copias JSON, informes mensuales en PDF para guardar o compartir, ayuda integrada y bloqueo local mediante un PIN opcional. El PIN no cifra las copias exportadas.\n\nLas estimaciones de impuestos sirven para planificar y no sustituyen la revisión de un profesional ni presentan declaraciones por ti. Conserva tus justificantes y revisa los informes con tu gestor.\n\nContacto de soporte: raulito-sp@hotmail.com.\nPuedes solicitar la eliminación de tu cuenta y sus datos sincronizados desde Ajustes o mediante la página pública indicada en la ficha.\n\n# Datos de la ficha y revisión\n\n- Categoría propuesta: Finanzas.\n- Correo de contacto: raulito-sp@hotmail.com.\n- Privacidad prevista: https://obreriyo.github.io/Control-Autonomo-Android/privacidad.html\n- Eliminación prevista: https://obreriyo.github.io/Control-Autonomo-Android/eliminar-cuenta.html\n- Las dos direcciones deben publicarse y verificarse antes de introducirlas como definitivas.\n- Anuncios: esta versión no incluye SDK ni anuncios de terceros.\n- Público previsto: adultos que llevan los movimientos de un negocio. Completar el cuestionario de clasificación con el comportamiento real.\n- No declarar funciones de préstamos, inversión, banca o pagos que esta app no ofrece. Completar las declaraciones financieras de Play según el uso real de gestor de movimientos.\n- Acceso para revisión: se puede comprobar el modo local sin iniciar sesión. Preparar una cuenta de prueba sin datos personales para que Google compruebe la sincronización, si solicita credenciales. No usar tu cuenta ni poner la contraseña en el repositorio.\n- Icono de la ficha: revisar `icon-512.png`; generar y comprobar también el gráfico de funciones y capturas de la versión final, sin correos ni importes personales.\n- Pendiente: gráficos finales, capturas, formulario de seguridad de datos, cuenta de desarrollador verificada y prueba cerrada si aplica.\n\n# Comprobación de afirmaciones\n\nEl acceso y el ojo han sido confirmados por el usuario. Los tests de simulación comprueban sincronización, conflictos, aislamiento, cambios sin conexión y recuperación de contraseña. Aún hace falta comprobar entre dos dispositivos reales el flujo completo y verificar restauración, PDF y navegación en Android 16. La descripción no debe publicarse hasta que esas funciones estén comprobadas con el AAB final.\n')
+          PYUPDATE
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Actualizar web y verificar
+      - name: Actualizar web y comprobar
         run: |
           node tools/prepare-web.cjs
           node tests/verify.cjs
-
+          node tests/sync.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Recuperar firma si está configurada
+      - name: Recuperar firma debug configurada
         env:
           DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
@@ -75,22 +154,19 @@ jobs:
             mkdir -p "$HOME/.android"
             printf '%s' "$DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
           fi
-
-      - name: Compilar APK
+      - name: Compilar APK de pruebas
         run: gradle :app:assembleDebug --stacktrace
-
-      - name: Guardar mejora
+      - name: Guardar cambios comprobados
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/build.gradle app/src/main/assets web
+          git add .gitignore app/build.gradle app/src/main/AndroidManifest.xml app/src/main/java/com/miscuentas/pro/MainActivity.java app/src/main/assets web docs tools/play-store tests/sync.cjs
           if ! git diff --cached --quiet; then
-            git commit -m "Añadir ojo para mostrar y ocultar contraseña"
+            git commit -m "Preparar privacidad, solicitud de eliminación y firma de publicación"
             git push
           fi
-
       - uses: actions/upload-artifact@v4
         with:
-          name: Control-Autonomo-1.0.3-APK
+          name: Control-Autonomo-1.0.4-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
