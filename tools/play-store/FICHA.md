@@ -37,3 +37,5 @@ Puedes solicitar la eliminación de tu cuenta y sus datos sincronizados desde Aj
 # Comprobación de afirmaciones
 
 El acceso y el ojo han sido confirmados por el usuario. Los tests de simulación comprueban sincronización, conflictos, aislamiento, cambios sin conexión y recuperación de contraseña. Aún hace falta comprobar entre dos dispositivos reales el flujo completo y verificar restauración, PDF y navegación en Android 16. La descripción no debe publicarse hasta que esas funciones estén comprobadas con el AAB final.
+
+Registra cobros en efectivo, tarjeta o transferencia y consulta su desglose en los informes y PDF.

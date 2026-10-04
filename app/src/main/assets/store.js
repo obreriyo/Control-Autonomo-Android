@@ -12,6 +12,7 @@
   for(const m of d.movements){
    if(!Number.isSafeInteger(m.id)||!date(m.date)||!['Ingreso','Gasto'].includes(m.type)||typeof m.concept!=='string'||!Number.isFinite(m.total)||!Number.isFinite(m.vat)||m.vat===-100)throw Error('Movimiento no válido');
    if(m.withholding!=null&&!Number.isFinite(m.withholding))throw Error('Importe no válido');
+   if(m.paymentMethod!=null&&!['cash','card','transfer','unspecified'].includes(m.paymentMethod))throw Error('Forma de cobro no válida');
   }
   for(const b of d.bank)if(!Number.isSafeInteger(b.id)||!date(b.date)||!Number.isFinite(b.amount))throw Error('Banco no válido');
   return d;

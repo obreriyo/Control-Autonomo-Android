@@ -30,16 +30,28 @@ function render(){
  let y=currentYear(), ms=data.movements.filter(m=>+m.date.slice(0,4)==y),inc=ms.filter(m=>m.type=="Ingreso").reduce((a,m)=>a+(+m.total||0),0),exp=ms.filter(m=>m.type=="Gasto").reduce((a,m)=>a+(+m.total||0),0);
  income.textContent="+"+eur(inc);expense.textContent="-"+eur(exp);balance.textContent=eur(inc-exp);
  recent.innerHTML=ms.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(m=>movementHTML(m)).join("")||'<div class="panel small">Todavía no hay movimientos.</div>';
- renderQuarters();renderCash();renderBenefits()
+ renderQuarters();renderCash();renderBenefits();document.getElementById('annualPayments').innerHTML=paymentSummaryHTML(selectedIncome(y),'Cobros del año '+y)
+}
+function paymentSummaryHTML(movements,title='Cobrado por forma de pago'){
+ const totals=CAPayments.split(movements);
+ return `<h3>${title}</h3><table class="reportTable"><tr><th>Forma de cobro</th><th>Importe (IVA incluido)</th></tr>${Object.entries(CAPayments.labels).map(([key,label])=>`<tr><td>${label}</td><td>${eur(totals[key])}</td></tr>`).join('')}<tr><th>Total cobrado</th><th>${eur(totals.total)}</th></tr></table>${totals.unspecifiedCount?'<p class="small">Los ingresos sin forma de cobro se muestran como Sin especificar. Puedes clasificarlos en Movimientos.</p>':''}`;
+}
+function selectedIncome(y,m){return data.movements.filter(x=>x.type==='Ingreso'&&Number(x.date.slice(0,4))===y&&(m==null||Number(x.date.slice(5,7))===m))}
+function reportedIncome(y,m){return selectedIncome(y,m).filter(x=>!data.nonworking.includes(x.date))}
+function setPaymentMethod(id,value){
+ if(!Object.hasOwn(CAPayments.labels,value))return;
+ const movement=data.movements.find(x=>x.id===id&&x.type==='Ingreso');if(!movement)return;
+ const previous=movement.paymentMethod;movement.paymentMethod=value;
+ try{save();const month=Number(movement.date.slice(5,7));if(document.getElementById('moves').classList.contains('active'))renderMonth(month);buildMonthlyReport()}catch(e){if(previous==null)delete movement.paymentMethod;else movement.paymentMethod=previous;render()}
 }
 function movementHTML(m){
  let cat=m.type==="Gasto"?categoryName(m.category):"";
- return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%</div><div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type==="Ingreso"?"green":"red"}">${m.type==="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
+ return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%${m.type==="Ingreso"?` · ${CAPayments.labels[CAPayments.method(m)]}`:""}</div>${m.type==="Ingreso"?`<label class="small" for="payment-${m.id}">Forma de cobro</label><select id="payment-${m.id}" aria-label="Forma de cobro del ingreso ${m.id}" onchange="setPaymentMethod(${m.id},this.value)" style="font-size:14px;padding:8px;margin:4px 0">${Object.entries(CAPayments.labels).map(([key,label])=>`<option value="${key}" ${CAPayments.method(m)===key?'selected':''}>${label}</option>`).join('')}</select>`:''}<div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type==="Ingreso"?"green":"red"}">${m.type==="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
 
 function deleteMove(id){if(confirm("¿Borrar este movimiento?")){data.movements=data.movements.filter(x=>x.id!=id);save()}}
 const CATEGORY_NAMES={material:"Compras / materiales",gestoria:"Gestoría / servicios profesionales",autonomos:"Cuota de autónomos (RETA)",suministros:"Suministros",alquiler:"Alquiler",seguros:"Seguros",transporte:"Vehículo / transporte",formacion:"Formación",otros:"Otros gastos"};
 function categoryName(v){return CATEGORY_NAMES[v]||"Otros gastos"}
-function syncMovementForm(){let isExpense=type.value==="Gasto";expenseFiscalFields.style.display=isExpense?"block":"none";deductibleFields.style.display=isExpense?"block":"none";if(isExpense)applyExpenseCategory();else{vat.disabled=false;vatDeductible.checked=false;irpfDeductible.checked=false;fiscalHint.textContent=""}}
+function syncMovementForm(){let isExpense=type.value==="Gasto";document.getElementById("paymentFields").hidden=isExpense;expenseFiscalFields.style.display=isExpense?"block":"none";deductibleFields.style.display=isExpense?"block":"none";if(isExpense)applyExpenseCategory();else{vat.disabled=false;vatDeductible.checked=false;irpfDeductible.checked=false;fiscalHint.textContent=""}}
 const EXPENSE_PRESETS={
  material:{vat:21,irpf:true,vatDed:true,hint:"Configuración habitual para compras y materiales afectos a la actividad: IRPF e IVA deducibles. Comprueba siempre la factura."},
  gestoria:{vat:21,irpf:true,vatDed:true,hint:"Configuración habitual de gestoría y servicios profesionales afectos a la actividad: IRPF e IVA deducibles. Ajusta la retención si la factura la incluye."},
@@ -53,9 +65,9 @@ const EXPENSE_PRESETS={
 };
 function applyExpenseCategory(){let p=EXPENSE_PRESETS[expenseCategory.value]||EXPENSE_PRESETS.otros;vat.disabled=false;vat.value=p.vat;irpfDeductible.checked=p.irpf;vatDeductible.checked=p.vatDed;vat.disabled=!!p.lockVat;fiscalHint.textContent=p.hint}
 function dateForSelectedYear(){let now=new Date(),y=currentYear(),m=now.getMonth()+1,d=now.getDate(),last=new Date(y,m,0).getDate();d=Math.min(d,last);return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`}
-function openAdd(){date.value=dateForSelectedYear();type.value="Ingreso";vat.value=21;withholding.value=0;syncMovementForm();dlg.showModal()}
+function openAdd(){date.value=dateForSelectedYear();type.value="Ingreso";document.getElementById("paymentMethod").value="";vat.value=21;withholding.value=0;syncMovementForm();dlg.showModal()}
 type.addEventListener("change",syncMovementForm);
-function addMovement(){let n=parseFloat(total.value.replace(",","."));if(!date.value||!n)return alert("Indica fecha e importe.");if(type.value==="Ingreso"&&data.nonworking.includes(date.value))return alert("Este día está marcado como no trabajado. No puedes registrar ingresos en esta fecha.");let isExpense=type.value==="Gasto",c=isExpense?expenseCategory.value:null,v=+vat.value||0;if(c==="autonomos")v=0;data.movements.push({id:Date.now(),type:type.value,date:date.value,concept:concept.value,total:n,vat:v,withholding:+withholding.value||0,gestoria:false,category:c,irpfDeductible:isExpense?irpfDeductible.checked:false,vatDeductible:isExpense?vatDeductible.checked:false});concept.value="";total.value="";dlg.close();save()}
+function addMovement(){let n=parseFloat(total.value.replace(",","."));if(!date.value||!n)return alert("Indica fecha e importe.");if(type.value==="Ingreso"&&data.nonworking.includes(date.value))return alert("Este día está marcado como no trabajado. No puedes registrar ingresos en esta fecha.");const paymentMethod=document.getElementById("paymentMethod").value;if(type.value==="Ingreso"&&!["cash","card","transfer"].includes(paymentMethod))return alert("Elige cómo has cobrado: efectivo, tarjeta o transferencia.");let isExpense=type.value==="Gasto",c=isExpense?expenseCategory.value:null,v=+vat.value||0;if(c==="autonomos")v=0;data.movements.push({id:Date.now(),type:type.value,date:date.value,concept:concept.value,total:n,vat:v,withholding:+withholding.value||0,gestoria:false,...(!isExpense?{paymentMethod}:{}),category:c,irpfDeductible:isExpense?irpfDeductible.checked:false,vatDeductible:isExpense?vatDeductible.checked:false});concept.value="";total.value="";dlg.close();save()}
 function renderMonth(m){
  show("moves",document.querySelectorAll(".nav button")[1]);let y=currentYear(),arr=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).sort((a,b)=>b.date.localeCompare(a.date));
  let days=new Date(y,m,0).getDate(),nw=data.nonworking.filter(d=>d.startsWith(`${y}-${String(m).padStart(2,"0")}`)).length;
@@ -82,18 +94,19 @@ function monthlyBenefit(y,m){
 
 function renderBenefits(){
  let b=monthlyBenefit(currentYear(),+benefitMonth.value),m=+benefitMonth.value;
- benefits.innerHTML=`<div style="border-top:1px solid var(--line);padding:14px 0"><b>${MONTHS[m-1]} ${currentYear()}</b><div class="small" style="margin-top:8px;line-height:1.7">Ingresos: <b>${eur(b.inc)}</b><br>Gastos: <b>${eur(b.gas)}</b><br>Beneficio antes de impuestos: <b>${eur(b.bruto)}</b><br>Hacienda estimada: <b>${eur(b.hacienda)}</b> (IVA ${eur(b.iva)} + IRPF ${eur(b.irpf)})<br><b>Beneficio neto estimado: ${eur(b.neto)}</b></div></div>`}
+ benefits.innerHTML=`<div style="border-top:1px solid var(--line);padding:14px 0"><b>${MONTHS[m-1]} ${currentYear()}</b><div class="small" style="margin-top:8px;line-height:1.7">Ingresos: <b>${eur(b.inc)}</b><br>Gastos: <b>${eur(b.gas)}</b><br>Beneficio antes de impuestos: <b>${eur(b.bruto)}</b><br>Hacienda estimada: <b>${eur(b.hacienda)}</b> (IVA ${eur(b.iva)} + IRPF ${eur(b.irpf)})<br><b>Beneficio neto estimado: ${eur(b.neto)}</b></div></div>`+paymentSummaryHTML(selectedIncome(currentYear(),m))}
 
 function addBank(){let n=parseFloat(bankAmount.value.replace(",","."));if(!bankDate.value||!n)return alert("Indica fecha e importe.");data.bank.push({id:Date.now(),date:bankDate.value,amount:n});bankAmount.value="";save()}
 function renderCash(){
- let y=currentYear(),cash=0,out="";
- for(let m=1;m<=12;m++){
-  let inc=data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.total||0),0);
-  let dep=data.bank.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).reduce((a,x)=>a+(+x.amount||0),0);
-  cash+=inc-dep;
-  out+=`<div class="movement"><div class="ico">${m}</div><div><div class="mname">${MONTHS[m-1]}</div><div class="sub">Ingresos ${eur(inc)}<br>Banco ${eur(dep)}</div></div><div class="amt">${eur(cash)}<div class="small">caja acumulada</div></div></div>`}
- cashSummary.innerHTML=out;
- bankHistory.innerHTML=data.bank.filter(x=>+x.date.slice(0,4)==y).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="movement"><div class="ico">€</div><div><div class="mname">Ingreso al banco</div><div class="sub">${x.date}</div></div><div class="amt">${eur(x.amount)}<div><button class="tiny danger" onclick="deleteBank(${x.id})">Borrar</button></div></div></div>`).join("")||'<div class="panel small">Sin ingresos al banco.</div>'}
+ const y=currentYear(),months=CAPayments.cashYear(data.movements,data.bank,y);
+ cashSummary.innerHTML=months.map(r=>{
+ const monthIncome=CAPayments.split(selectedIncome(y,r.month));
+ return `<div class="panel"><b>${MONTHS[r.month-1]}</b><div class="small" style="line-height:1.8;margin-top:8px">Cobrado en efectivo: ${eur(monthIncome.cash)}<br>Cobrado con tarjeta: ${eur(r.card)}<br>Cobrado por transferencia: ${eur(r.transfer)}<br>Sin especificar: ${eur(r.unspecified)}<br>Efectivo llevado al banco: ${eur(r.deposit)}<br><b>${r.unknownCount?'Caja provisional':'Caja acumulada'}: ${eur(r.unknownCount?r.provisionalCash:r.cash)}</b>${r.unknownCount?`<br>Incluye ${eur(r.unknown)} sin forma de cobro asignada; clasifica esos ingresos para conocer el efectivo.`:''}<br>Entradas brutas al banco acumuladas: ${eur(r.bankEntries)}</div></div>`;
+ }).join('');
+ const deposited=data.bank.filter(x=>Number(x.date.slice(0,4))===y).map(x=>({...x,kind:'deposit'}));
+ const direct=selectedIncome(y).filter(x=>['card','transfer'].includes(CAPayments.method(x))).map(x=>({...x,amount:x.total,kind:CAPayments.method(x)}));
+ bankHistory.innerHTML=[...deposited,...direct].sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="movement"><div class="ico">€</div><div><div class="mname">${x.kind==='deposit'?'Efectivo llevado al banco':CAPayments.labels[x.kind]+' · cobro registrado'}</div><div class="sub">${x.date}${x.kind==='deposit'?'':' · Importe bruto; consulta el abono en tu banco'}</div></div><div class="amt">${eur(x.amount)}<div>${x.kind==='deposit'?`<button class="tiny danger" onclick="deleteBank(${x.id})">Borrar</button>`:'<span class="small">Se modifica desde Movimientos</span>'}</div></div></div>`).join('')||'<div class="panel small">Sin entradas registradas al banco.</div>';
+}
 
 function monthlyIncomeRows(){
  let y=currentYear(),m=+reportMonth.value,d={};
@@ -105,7 +118,7 @@ function buildMonthlyReport(){
  let tt=0,tb=0;
  let rows=arr.map(x=>{tt+=x.total;tb+=x.base;return `<tr><td>${x.date.slice(8,10)}/${x.date.slice(5,7)}/${x.date.slice(0,4)}</td><td>${eur(x.total)}</td><td>${eur(x.base)}</td></tr>`}).join("");
  let totalRow=arr.length?`<tr><th>TOTAL MES</th><th>${eur(tt)}</th><th>${eur(tb)}</th></tr>`:"";
- document.getElementById("monthlyReport").innerHTML=`<h3>${data.settings.owner||"Nombre de empresa"}</h3><div class="small" style="margin:-6px 0 14px">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable"><tr><th>Fecha</th><th>Efectivo + IVA</th><th>Base imponible</th></tr>${rows||'<tr><td colspan="3">Sin ingresos registrados</td></tr>'}${totalRow}</table>`;
+ document.getElementById("monthlyReport").innerHTML=`<h3>${data.settings.owner||"Nombre de empresa"}</h3><div class="small" style="margin:-6px 0 14px">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable"><tr><th>Fecha</th><th>Total (IVA incluido)</th><th>Base imponible</th></tr>${rows||'<tr><td colspan="3">Sin ingresos registrados</td></tr>'}${totalRow}</table>`+paymentSummaryHTML(reportedIncome(y,m));
  const pa=document.getElementById("pdfActions");if(pa)pa.style.display="block";
 }
 function renderGestoria(){
@@ -125,11 +138,16 @@ function makeMonthlyPdfBytes(){
  let tt=0,tb=0;
  const pageStreams=[];let cmds=[],cy=790;
  function add(text,x,size=10,bold=false){cmds.push(pdfTextCmd(text,x,cy,size,bold));}
- function header(){cy=790;add(data.settings.owner||"Nombre de empresa",45,16,true);cy-=24;add(`Registro de ingresos - ${MONTHS[m-1]} ${y}`,45,12,true);cy-=30;add("Fecha",45,9,true);add("Efectivo + IVA",220,9,true);add("Base imponible",405,9,true);cy-=17;}
+ function header(){cy=790;add(data.settings.owner||"Nombre de empresa",45,16,true);cy-=24;add(`Registro de ingresos - ${MONTHS[m-1]} ${y}`,45,12,true);cy-=30;add("Fecha",45,9,true);add("Total (IVA incluido)",220,9,true);add("Base imponible",405,9,true);cy-=17;}
  function flush(){pageStreams.push(cmds);cmds=[];}
  header();
  for(const r of rows){if(cy<90){flush();header()}tt+=r.total;tb+=r.base;add(`${r.date.slice(8,10)}/${r.date.slice(5,7)}/${r.date.slice(0,4)}`,45,9);add(eur(r.total),220,9);add(eur(r.base),405,9);cy-=18;}
  if(!rows.length){add("Sin ingresos registrados en este mes.",45,10);cy-=22}else{if(cy<105){flush();header()}cy-=8;add("TOTAL MES",45,10,true);add(eur(tt),220,10,true);add(eur(tb),405,10,true);}
+ if(cy<190){flush();header()}
+ cy-=34;add("Desglose por forma de cobro (IVA incluido)",45,11,true);cy-=22;
+ const breakdown=CAPayments.split(reportedIncome(y,m));
+ for(const [key,label] of Object.entries(CAPayments.labels)){add(label,45,10);add(eur(breakdown[key]),300,10);cy-=20}
+ add("TOTAL COBRADO",45,10,true);add(eur(breakdown.total),300,10,true);cy-=20;
  flush();
  const enc=new TextEncoder();let objects=[];
  const pageCount=pageStreams.length;const font1=3+pageCount*2,font2=font1+1;
@@ -144,15 +162,12 @@ function makeMonthlyPdfBytes(){
 }
 function viewMonthlyPDF(){
  buildMonthlyReport();
- let y=currentYear(),m=+document.getElementById("reportMonth").value,rows=monthlyIncomeRows(),tt=0,tb=0;
- let trs=rows.map(r=>{tt+=r.total;tb+=r.base;return `<tr><td>${r.date.slice(8,10)}/${r.date.slice(5,7)}/${r.date.slice(0,4)}</td><td>${eur(r.total)}</td><td>${eur(r.base)}</td></tr>`}).join("");
- if(!rows.length)trs='<tr><td colspan="3">Sin ingresos registrados</td></tr>';
- else trs+=`<tr><th>TOTAL MES</th><th>${eur(tt)}</th><th>${eur(tb)}</th></tr>`;
- let old=document.getElementById("pdfPreviewOverlay");if(old)old.remove();
- let o=document.createElement("div");o.id="pdfPreviewOverlay";o.style.cssText="position:fixed;inset:0;z-index:99999;background:#e9edf2;overflow:auto;padding:14px";
- o.innerHTML=`<div style="max-width:820px;margin:0 auto"><div style="position:sticky;top:0;z-index:2;display:flex;gap:8px;padding:8px 0;background:#e9edf2"><button class="primary" style="flex:1" onclick="document.getElementById('pdfPreviewOverlay').remove()">← Volver</button><button class="secondary" style="flex:1;background:#111;color:#fff;border-color:#111" onclick="saveMonthlyPDF()">💾 Guardar / compartir</button><button class="secondary" style="flex:1" onclick="printMonthlyReport()">🖨️ Imprimir</button></div><div id="pdfPreviewPage" style="background:#fff;color:#111;min-height:75vh;padding:28px 20px;box-shadow:0 2px 12px #0002"><h2 style="margin:0 0 5px;color:#111">${data.settings.owner||"Nombre de empresa"}</h2><div style="margin-bottom:22px;color:#555">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable" style="width:100%;color:#111"><tr><th>Fecha</th><th>Efectivo + IVA</th><th>Base imponible</th></tr>${trs}</table></div></div>`;
+ const old=document.getElementById('pdfPreviewOverlay');if(old)old.remove();
+ const o=document.createElement('div');o.id='pdfPreviewOverlay';o.style.cssText='position:fixed;inset:0;z-index:99999;background:#e9edf2;overflow:auto;padding:14px';
+ o.innerHTML=`<div style="max-width:820px;margin:0 auto"><div style="position:sticky;top:0;z-index:2;display:flex;gap:8px;padding:8px 0;background:#e9edf2"><button class="primary" style="flex:1" onclick="document.getElementById('pdfPreviewOverlay').remove()">Volver</button><button class="secondary" style="flex:1" onclick="saveMonthlyPDF()">Guardar / compartir</button><button class="secondary" style="flex:1" onclick="printMonthlyReport()">Imprimir</button></div><div id="pdfPreviewPage" style="background:#fff;color:#111;min-height:75vh;padding:28px 20px">${document.getElementById('monthlyReport').innerHTML}</div></div>`;
  document.body.appendChild(o);
 }
+
 async function blobToDataURL(blob){
  return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(blob)})
 }

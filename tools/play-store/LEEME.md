@@ -1,6 +1,6 @@
 # Preparación de Control Autónomo para Google Play
 
-Contacto confirmado: raulito-sp@hotmail.com. Versión preparada: 1.0.4 (5).
+Contacto confirmado: raulito-sp@hotmail.com. Versión preparada: 1.0.5 (5).
 
 ## Solicitudes de eliminación
 
@@ -34,7 +34,7 @@ La firma de Google Play puede ser distinta de la APK debug instalada. Exporta an
 
 ## Comprobaciones antes de publicar
 
-- Compilar en GitHub la APK 1.0.4 y probar login, ojo, recuperación, modo local, PDF, copias y restauración.
+- Compilar en GitHub la APK 1.0.5 y probar login, ojo, recuperación, modo local, PDF, copias y restauración.
 - Probar sincronización real entre dos dispositivos, incluidos conflictos y cambios sin conexión.
 - Probar Atrás y barras del sistema en Android 16 y en el móvil actual.
 - Probar Privacidad, solicitud por correo y alternativa si no hay app de correo. Abrir el correo no equivale a enviar una solicitud.
@@ -54,3 +54,11 @@ La sincronización transmite datos; no declarar «no se recopilan datos». El re
 - HTTPS para Firebase, opción de solicitar eliminación de cuenta, datos y copias sincronizadas; los archivos exportados y las copias en otros dispositivos requieren acción del titular.
 
 No es un formulario ya presentado ni una aprobación de Google. Revisar categorías contra el AAB final y su comportamiento.
+
+## Formas de cobro (1.0.5)
+
+Cada ingreso permite elegir efectivo, tarjeta o transferencia. Los informes y PDF muestran el desglose. Los ingresos antiguos conservan su importe y quedan Sin especificar hasta clasificarlos desde Movimientos.
+
+Caja/Banco muestra cada cobro con tarjeta o transferencia automáticamente, en bruto y con la fecha del ingreso; no representa el saldo bancario real ni descuenta comisiones. Los ingresos al banco manuales representan solo traslados de efectivo. No vuelvas a registrar como traslado un cobro con tarjeta. Si quedan ingresos sin clasificar, el saldo de caja se indica como provisional.
+
+Comprobar en el móvil un ingreso de cada tipo, su cambio de forma de cobro, un traslado de efectivo y el PDF antes de publicar.
