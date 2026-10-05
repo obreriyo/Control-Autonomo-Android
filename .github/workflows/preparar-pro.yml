@@ -1,0 +1,73 @@
+name: Preparar comparativas Pro de Control Autónomo
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Añadir comparativas Pro de prueba
+        run: |
+          python3 - <<'PYUPDATE'
+          from pathlib import Path
+          import base64
+          root=Path('app/src/main/assets')
+          (root/'pro-reports.js').write_bytes(base64.b64decode('LyogUHJvIHByZXZpZXc6IG5vIHB1cmNoYXNlIG9yIHN1YnNjcmlwdGlvbiBpcyBhY3RpdmF0ZWQgYnkgdGhpcyBtb2R1bGUuICovCihmdW5jdGlvbigpewogY29uc3QgbW9udGhzPVsnRW5lcm8nLCdGZWJyZXJvJywnTWFyem8nLCdBYnJpbCcsJ01heW8nLCdKdW5pbycsJ0p1bGlvJywnQWdvc3RvJywnU2VwdGllbWJyZScsJ09jdHVicmUnLCdOb3ZpZW1icmUnLCdEaWNpZW1icmUnXTsKIGZ1bmN0aW9uIHRvdGFscyhyb3dzLHllYXIsbW9udGgpe2NvbnN0IHQ9e2luY29tZTowLGV4cGVuc2U6MCxwcm9maXQ6MH07Zm9yKGNvbnN0IHggb2Ygcm93cyl7aWYoTnVtYmVyKHguZGF0ZS5zbGljZSgwLDQpKSE9PXllYXJ8fChtb250aCYmTnVtYmVyKHguZGF0ZS5zbGljZSg1LDcpKSE9PW1vbnRoKSljb250aW51ZTtjb25zdCBuPU51bWJlcih4LnRvdGFsKXx8MDtpZih4LnR5cGU9PT0nSW5ncmVzbycpdC5pbmNvbWUrPW47ZWxzZSBpZih4LnR5cGU9PT0nR2FzdG8nKXQuZXhwZW5zZSs9bjt9dC5wcm9maXQ9dC5pbmNvbWUtdC5leHBlbnNlO3JldHVybiB0O30KIGZ1bmN0aW9uIGRlbHRhKG5vdyxiZWZvcmUpe3JldHVybiB7YW1vdW50Om5vdy1iZWZvcmUscGVyY2VudDpiZWZvcmU9PT0wP251bGw6KG5vdy1iZWZvcmUpL01hdGguYWJzKGJlZm9yZSkqMTAwfTt9CiB3aW5kb3cuQ0FQcm9SZXBvcnRzPXt0b3RhbHMsZGVsdGF9OwogZnVuY3Rpb24gaW5pdCgpe2NvbnN0IGhvc3Q9ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3JlcG9ydHMnKTtpZighaG9zdClyZXR1cm47Y29uc3QgYm94PWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3NlY3Rpb24nKTtib3guY2xhc3NOYW1lPSdwYW5lbCc7Ym94LmlubmVySFRNTD0nPGgzPkNvbXBhcmF0aXZhcyBQcm8gwrcgdmlzdGEgcHJldmlhPC9oMz48cCBjbGFzcz0ic21hbGwiPlBydWViYSBkZSBsYXMgbnVldmFzIGZ1bmNpb25lcy4gVG9kYXbDrWEgbm8gaGF5IGNvbXByYXMgbmkgc3VzY3JpcGNpb25lcyBhY3RpdmFzLjwvcD48bGFiZWw+Q29tcGFyYXI8c2VsZWN0IGlkPSJwcm9Nb2RlIj48b3B0aW9uIHZhbHVlPSJtb250aCI+TWVzZXM8L29wdGlvbj48b3B0aW9uIHZhbHVlPSJ5ZWFyIj5Bw7FvcyBjb21wbGV0b3M8L29wdGlvbj48L3NlbGVjdD48L2xhYmVsPjxkaXYgc3R5bGU9ImRpc3BsYXk6ZmxleDtnYXA6MTJweDtmbGV4LXdyYXA6d3JhcCI+PGxhYmVsIHN0eWxlPSJmbGV4OjEiPlBlcmlvZG8gQTxpbnB1dCBpZD0icHJvWWVhckEiIHR5cGU9Im51bWJlciIgbWluPSIxOTAwIiBtYXg9IjIyMDAiPjxzZWxlY3QgaWQ9InByb01vbnRoQSI+PC9zZWxlY3Q+PC9sYWJlbD48bGFiZWwgc3R5bGU9ImZsZXg6MSI+UGVyaW9kbyBCPGlucHV0IGlkPSJwcm9ZZWFyQiIgdHlwZT0ibnVtYmVyIiBtaW49IjE5MDAiIG1heD0iMjIwMCI+PHNlbGVjdCBpZD0icHJvTW9udGhCIj48L3NlbGVjdD48L2xhYmVsPjwvZGl2PjxidXR0b24gY2xhc3M9InByaW1hcnkiIGlkPSJwcm9Db21wYXJlIj5Db21wYXJhcjwvYnV0dG9uPjxkaXYgaWQ9InByb1Jlc3VsdHMiIGFyaWEtbGl2ZT0icG9saXRlIj48L2Rpdj48cCBjbGFzcz0ic21hbGwiPkltcG9ydGVzIGNvbiBJVkEgaW5jbHVpZG8uIEJlbmVmaWNpbyA9IGluZ3Jlc29zIG1lbm9zIGdhc3RvcywgYW50ZXMgZGUgaW1wdWVzdG9zLiBEaWZlcmVuY2lhOiBwZXJpb2RvIEIgbWVub3MgcGVyaW9kbyBBLiBObyBzdXN0aXR1eWUgYWwgaW5mb3JtZSBmaXNjYWwuPC9wPic7aG9zdC5hcHBlbmRDaGlsZChib3gpOwogY29uc3QgZ2V0PWlkPT5kb2N1bWVudC5nZXRFbGVtZW50QnlJZChpZCkseT1jdXJyZW50WWVhcigpLG09bmV3IERhdGUoKS5nZXRNb250aCgpKzE7CiBmb3IoY29uc3QgaWQgb2YgWydwcm9Nb250aEEnLCdwcm9Nb250aEInXSlnZXQoaWQpLmlubmVySFRNTD1tb250aHMubWFwKCh2LGkpPT5gPG9wdGlvbiB2YWx1ZT0iJHtpKzF9Ij4ke3Z9PC9vcHRpb24+YCkuam9pbignJyk7CiBnZXQoJ3Byb1llYXJCJykudmFsdWU9eTtnZXQoJ3Byb01vbnRoQicpLnZhbHVlPW07Z2V0KCdwcm9ZZWFyQScpLnZhbHVlPW09PT0xP3ktMTp5O2dldCgncHJvTW9udGhBJykudmFsdWU9bT09PTE/MTI6bS0xOwogZnVuY3Rpb24gcmVuZGVyKCl7Y29uc3QgYW5udWFsPWdldCgncHJvTW9kZScpLnZhbHVlPT09J3llYXInO2dldCgncHJvTW9udGhBJykuaGlkZGVuPWFubnVhbDtnZXQoJ3Byb01vbnRoQicpLmhpZGRlbj1hbm51YWw7Y29uc3QgeWE9TnVtYmVyKGdldCgncHJvWWVhckEnKS52YWx1ZSkseWI9TnVtYmVyKGdldCgncHJvWWVhckInKS52YWx1ZSk7aWYoIU51bWJlci5pc0ludGVnZXIoeWEpfHwhTnVtYmVyLmlzSW50ZWdlcih5Yil8fHlhPDE5MDB8fHliPDE5MDB8fHlhPjIyMDB8fHliPjIyMDApe2dldCgncHJvUmVzdWx0cycpLnRleHRDb250ZW50PSdJbmRpY2EgYcOxb3MgZW50cmUgMTkwMCB5IDIyMDAuJztyZXR1cm47fWNvbnN0IG1hPWFubnVhbD8wOk51bWJlcihnZXQoJ3Byb01vbnRoQScpLnZhbHVlKSxtYj1hbm51YWw/MDpOdW1iZXIoZ2V0KCdwcm9Nb250aEInKS52YWx1ZSksYT10b3RhbHMoZGF0YS5tb3ZlbWVudHMseWEsbWEpLGI9dG90YWxzKGRhdGEubW92ZW1lbnRzLHliLG1iKTtjb25zdCBsYWJlbD0oeXksbW0pPT5tbT9tb250aHNbbW0tMV0rJyAnK3l5OlN0cmluZyh5eSk7Z2V0KCdwcm9SZXN1bHRzJykuaW5uZXJIVE1MPWA8cD5BOiA8Yj4ke2xhYmVsKHlhLG1hKX08L2I+PGJyPkI6IDxiPiR7bGFiZWwoeWIsbWIpfTwvYj48L3A+YCtbWydpbmNvbWUnLCdJbmdyZXNvcyddLFsnZXhwZW5zZScsJ0dhc3RvcyddLFsncHJvZml0JywnQmVuZWZpY2lvIGFudGVzIGRlIGltcHVlc3RvcyddXS5tYXAoKFtrZXksdGl0bGVdKT0+e2NvbnN0IGQ9ZGVsdGEoYltrZXldLGFba2V5XSk7cmV0dXJuIGA8ZGl2IHN0eWxlPSJib3JkZXItdG9wOjFweCBzb2xpZCB2YXIoLS1saW5lKTtwYWRkaW5nOjEycHggMCI+PGI+JHt0aXRsZX08L2I+PGRpdj5BOiAke2V1cihhW2tleV0pfSDCtyBCOiAke2V1cihiW2tleV0pfTwvZGl2PjxkaXY+RGlmZXJlbmNpYTogJHtkLmFtb3VudD4wPycrJzonJ30ke2V1cihkLmFtb3VudCl9IMK3ICR7ZC5wZXJjZW50PT09bnVsbD8nU2luIHBvcmNlbnRhamU6IEEgZXMgY2Vybyc6ZC5wZXJjZW50LnRvTG9jYWxlU3RyaW5nKCdlcy1FUycse21heGltdW1GcmFjdGlvbkRpZ2l0czoxfSkrJyAlJ308L2Rpdj48L2Rpdj5gO30pLmpvaW4oJycpO30KIGdldCgncHJvQ29tcGFyZScpLm9uY2xpY2s9cmVuZGVyO2dldCgncHJvTW9kZScpLm9uY2hhbmdlPXJlbmRlcjtyZW5kZXIoKTsKIH0KIGlmKGRvY3VtZW50LnJlYWR5U3RhdGU9PT0nbG9hZGluZycpZG9jdW1lbnQuYWRkRXZlbnRMaXN0ZW5lcignRE9NQ29udGVudExvYWRlZCcsaW5pdCk7ZWxzZSBpbml0KCk7Cn0pKCk7Cg=='))
+          p=root/'index.html'
+          s=p.read_text()
+          if 'src="pro-reports.js"' not in s:
+           s=s.replace('</body>', '<script src="pro-reports.js"></script></body>')
+          p.write_text(s)
+          PYUPDATE
+          node tools/prepare-web.cjs
+      - name: Guardar funciones nuevas
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/assets web
+          if ! git diff --cached --quiet; then
+            git commit -m "Añadir vista previa de comparativas Pro"
+            git push
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validar app y cálculos originales
+        run: node tests/verify.cjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar SDK Android
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Recuperar firma debug estable si está configurada
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+          else
+            echo "No hay keystore estable configurado; se usará la firma debug."
+          fi
+
+      - name: Compilar y revisar Android
+        run: gradle :app:assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Control-Autonomo-Pro-Vista-Previa-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
