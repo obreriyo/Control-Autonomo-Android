@@ -15,6 +15,14 @@
    if(m.paymentMethod!=null&&!['cash','card','transfer','unspecified'].includes(m.paymentMethod))throw Error('Forma de cobro no válida');
   }
   for(const b of d.bank)if(!Number.isSafeInteger(b.id)||!date(b.date)||!Number.isFinite(b.amount))throw Error('Banco no válido');
+  d.employees=d.employees||[];d.payrolls=d.payrolls||[];d.vacations=d.vacations||[];
+  const positive=n=>Number.isFinite(n)&&n>=0;
+  const uid=n=>typeof n==='string'&&n.length>0&&n.length<100;
+  if(!Array.isArray(d.employees)||!Array.isArray(d.payrolls)||!Array.isArray(d.vacations))throw Error('Empleados no válidos');
+  const ids=new Set();for(const e of d.employees){if(!uid(e.id)||ids.has(e.id)||typeof e.name!=='string'||!e.name.trim()||!positive(e.allowance)||!['working','calendar'].includes(e.basis)||!Number.isInteger(e.year))throw Error('Empleado no válido');if(e.quotas!=null&&(typeof e.quotas!=='object'||Array.isArray(e.quotas)||!Object.entries(e.quotas).every(([y,n])=>/^\d{4}$/.test(y)&&positive(n))))throw Error('Cupo no válido');ids.add(e.id)}
+  const costs=new Set();for(const p of d.payrolls){if(!uid(p.id)||costs.has(p.id)||!ids.has(p.employeeId)||!date(p.date)||!positive(p.salary)||!positive(p.social)||!positive(p.other)||!Number.isSafeInteger(p.movementId))throw Error('Coste de empleado no válido');costs.add(p.id);const m=d.movements.find(m=>m.id===p.movementId);if(!m||m.type!=='Gasto'||m.payrollId!==p.id||Math.abs(m.total-p.salary-p.social-p.other)>0.011)throw Error('Nómina sin gasto vinculado')}
+  for(const m of d.movements)if(m.payrollId!=null&&!costs.has(m.payrollId))throw Error('Gasto de empleado sin nómina');
+  for(const v of d.vacations)if(!uid(v.id)||!ids.has(v.employeeId)||!date(v.start)||!date(v.end)||v.end<v.start||v.start.slice(0,4)!==v.end.slice(0,4)||!positive(v.days)||v.days===0||!['planned','taken'].includes(v.status))throw Error('Vacaciones no válidas');
   return d;
  }
  function key(uid){return uid?'ca_v1_user_'+uid:'ca_v1_guest'}

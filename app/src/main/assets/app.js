@@ -12,7 +12,7 @@ function activatePage(id,b){
  document.getElementById(id).classList.add("active");
  document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));
  if(b)b.classList.add("active"); else {let btn=document.querySelector(`.nav button[onclick*="show('${id}'"]`);if(btn)btn.classList.add("active")}
- render();updateFabForPage();
+ render();updateFabForPage();window.scrollTo(0,0);
 }
 function show(id,b){
  activatePage(id,b);
@@ -29,7 +29,7 @@ function vals(m){let t=+m.total||0,r=+m.vat||0,base=t/(1+r/100);return{base,vat:
 function render(){
  let y=currentYear(), ms=data.movements.filter(m=>+m.date.slice(0,4)==y),inc=ms.filter(m=>m.type=="Ingreso").reduce((a,m)=>a+(+m.total||0),0),exp=ms.filter(m=>m.type=="Gasto").reduce((a,m)=>a+(+m.total||0),0);
  income.textContent="+"+eur(inc);expense.textContent="-"+eur(exp);balance.textContent=eur(inc-exp);
- recent.innerHTML=ms.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(m=>movementHTML(m)).join("")||'<div class="panel small">Todavía no hay movimientos.</div>';
+ recent.innerHTML=ms.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3).map(m=>movementHTML(m)).join("")||'<div class="panel small">Todavía no hay movimientos.</div>';
  renderQuarters();renderCash();renderBenefits();document.getElementById('annualPayments').innerHTML=paymentSummaryHTML(selectedIncome(y),'Cobros del año '+y)
 }
 function paymentSummaryHTML(movements,title='Cobrado por forma de pago'){
@@ -48,7 +48,7 @@ function movementHTML(m){
  let cat=m.type==="Gasto"?categoryName(m.category):"";
  return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%${m.type==="Ingreso"?` · ${CAPayments.labels[CAPayments.method(m)]}`:""}</div>${m.type==="Ingreso"?`<label class="small" for="payment-${m.id}">Forma de cobro</label><select id="payment-${m.id}" aria-label="Forma de cobro del ingreso ${m.id}" onchange="setPaymentMethod(${m.id},this.value)" style="font-size:14px;padding:8px;margin:4px 0">${Object.entries(CAPayments.labels).map(([key,label])=>`<option value="${key}" ${CAPayments.method(m)===key?'selected':''}>${label}</option>`).join('')}</select>`:''}<div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type==="Ingreso"?"green":"red"}">${m.type==="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
 
-function deleteMove(id){if(confirm("¿Borrar este movimiento?")){data.movements=data.movements.filter(x=>x.id!=id);save()}}
+function deleteMove(id){if(data.movements.find(x=>x.id==id)?.payrollId)return alert("Gestiona este coste desde Empleados para evitar inconsistencias.");if(confirm("¿Borrar este movimiento?")){data.movements=data.movements.filter(x=>x.id!=id);save()}}
 const CATEGORY_NAMES={material:"Compras / materiales",gestoria:"Gestoría / servicios profesionales",autonomos:"Cuota de autónomos (RETA)",suministros:"Suministros",alquiler:"Alquiler",seguros:"Seguros",transporte:"Vehículo / transporte",formacion:"Formación",otros:"Otros gastos"};
 function categoryName(v){return CATEGORY_NAMES[v]||"Otros gastos"}
 function syncMovementForm(){let isExpense=type.value==="Gasto";document.getElementById("paymentFields").hidden=isExpense;expenseFiscalFields.style.display=isExpense?"block":"none";deductibleFields.style.display=isExpense?"block":"none";if(isExpense)applyExpenseCategory();else{vat.disabled=false;vatDeductible.checked=false;irpfDeductible.checked=false;fiscalHint.textContent=""}}
