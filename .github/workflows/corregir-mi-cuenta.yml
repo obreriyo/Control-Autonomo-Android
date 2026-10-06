@@ -1,0 +1,71 @@
+name: Corregir botón Mi cuenta
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  corregir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Corregir botón y comprobar todos los botones
+        run: |
+          python3 - <<'PYFIX'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          import json
+          p=Path('app/src/main/assets/index.html')
+          s=p.read_text()
+          bad='document.querySelector(".account-panel").scrollIntoView();'
+          good="document.querySelector('.account-panel').scrollIntoView();"
+          if bad not in s and good not in s: raise SystemExit('No se encuentra el botón esperado')
+          p.write_text(s.replace(bad,good))
+          class Buttons(HTMLParser):
+              handlers=[]
+              def handle_starttag(self,tag,attrs):
+                  for key,value in attrs:
+                      if key=='onclick': self.handlers.append(value)
+          parser=Buttons();parser.feed(p.read_text())
+          Path('/tmp/button-handlers.json').write_text(json.dumps(parser.handlers))
+          PYFIX
+          node -e "const fs=require('fs');for(const handler of JSON.parse(fs.readFileSync('/tmp/button-handlers.json')))new Function(handler);console.log('Botones correctos')"
+          node tools/prepare-web.cjs
+          node tests/verify.cjs
+          node tests/employees.cjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar SDK Android
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Recuperar firma debug
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+          fi
+      - name: Compilar actualización
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Guardar corrección
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/assets/index.html web/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Corregir botón Mi cuenta"
+            git push
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Control-Autonomo-Mi-Cuenta-Corregido-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
