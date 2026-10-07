@@ -359,6 +359,8 @@ public class MainActivity extends Activity {
                                     .setType(
                                             "application/pdf".equals(mime)
                                                     ? "application/pdf"
+                                                    : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(mime)
+                                                    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                                                     : "application/json"
                                     )
                                     .putExtra(
