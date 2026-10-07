@@ -1,0 +1,16 @@
+(function(root){'use strict';
+const key='ca-preview-plan-1',free=()=>localStorage.getItem(key)==='free';
+function notice(){alert('Esta función pertenece a Pro. Puedes volver a la vista previa completa desde Mi cuenta. No hay pagos activados.');return false}
+function wrap(obj,names){if(!obj)return;for(const name of names){if(typeof obj[name]!=='function')continue;const original=obj[name];obj[name]=function(...args){if(free())return notice();return original.apply(this,args)}}}
+function mount(){const menu=document.querySelector('#home>.homeMenu');for(const label of ['Mi cuenta','Ajustes']){const tile=[...menu.children].find(x=>x.textContent.trim().endsWith(label));if(tile)menu.append(tile)}
+const panel=document.createElement('section');panel.className='panel';panel.id='planPanel';panel.innerHTML=`<h3>Gratis y Pro</h3><p class="planNotice" id="planStatus"></p><table class="planTable"><tr><th>Gratis</th><th>Pro añade</th></tr><tr><td>Ingresos y gastos<br>Efectivo, tarjeta y transferencia<br>Caja / Banco y beneficio básico<br>PDF de ingresos<br>Copias y sincronización</td><td>Empleados y vacaciones<br>TPV y stock<br>Cobros pendientes<br>Comparativas y gráficos<br>Excel y PDF completo con logo</td></tr></table><p>Vista de pruebas: no hay suscripción, cargos ni prueba de siete días activa. El acceso personal gratuito definitivo se configurará más adelante.</p><button class="secondary" id="planToggle"></button>`;document.getElementById('account').append(panel);
+const update=()=>{document.getElementById('planStatus').textContent=free()?'Vista gratuita de pruebas. Tus datos anteriores se conservan.':'Vista previa Pro: todas las funciones disponibles sin pagar.';const b=document.getElementById('planToggle');b.textContent=free()?'Volver a vista previa Pro':'Probar vista gratuita';for(const el of document.querySelectorAll('[data-pro-create]')){el.disabled=free();el.title=free()?'Función Pro':''}for(const id of ['proGraph','proResults']){const el=document.getElementById(id);if(el)el.hidden=free()}};
+document.getElementById('planToggle').onclick=()=>{localStorage.setItem(key,free()?'preview':'free');location.reload()};
+// Simulación de interfaz. Nunca se usa como verificación de una compra.
+wrap(root.CATPVUI,['checkout','saveProduct','saveCustomer']);wrap(root.CAEmployees,['saveEmployee','addCost','addVacation']);wrap(root.CAProBusiness,['saveReceivable','preview','pdf','excel','saveBrand','logo']);
+for(const fn of ['CATPVUI.checkout','CATPVUI.saveProduct','CATPVUI.saveCustomer','CAEmployees.saveEmployee','CAEmployees.addCost','CAEmployees.addVacation','CAProBusiness.saveReceivable','CAProBusiness.preview','CAProBusiness.pdf','CAProBusiness.excel','CAProBusiness.saveBrand','CAProBusiness.logo'])for(const el of document.querySelectorAll('[onclick],[onchange]'))if((el.getAttribute('onclick')||el.getAttribute('onchange')||'').includes(fn))el.dataset.proCreate='true';
+const compare=document.getElementById('proCompare');if(compare)compare.dataset.proCreate='true';update();const oldRender=root.render;root.render=function(...args){const result=oldRender.apply(this,args);update();return result};
+root.CAPlans={isFree:free,refresh:update};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})(globalThis);
