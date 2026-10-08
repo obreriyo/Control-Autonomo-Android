@@ -6,5 +6,6 @@ function save(d,input){const t=CATPV.ensure(d),list=ensure(d),old=list.find(a=>a
 function end(a){const n=minutes(a.time)+a.duration;return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}
 function addCustomer(d,{name,phone='',email=''}){name=String(name).trim();phone=String(phone).trim();email=String(email).trim();if(!name||name.length>120||phone.length>60||email.length>160)throw Error('Revisa los datos del cliente.');const customer={id:crypto.randomUUID(),name,phone,email,notes:'',archived:false};CATPV.ensure(d).customers.push(customer);return customer}
 function contactLinks(phone){const raw=String(phone??'').trim();if(!raw||!/^[+\d\s().-]+$/.test(raw)||raw.slice(1).includes('+'))return null;let digits=raw.replace(/\D/g,''),international=raw.startsWith('+')||raw.startsWith('00');if(raw.startsWith('00'))digits=digits.slice(2);if(digits.length<7||digits.length>15||(international&&digits.startsWith('0')))return null;return {call:'tel:'+(international?'+':'')+digits,whatsapp:international?'https://wa.me/'+digits:digits.length===9?'https://wa.me/34'+digits:null}}
-root.CAAgenda={ensure,validate,save,end,minutes,addCustomer,contactLinks};
+function remove(d,id){const list=ensure(d),a=list.find(a=>a.id===id);if(!a)throw Error('La cita ya no existe.');for(const sale of CATPV.ensure(d).sales)if(sale.appointmentId===id)delete sale.appointmentId;CATPV.ensure(d).appointments=list.filter(a=>a.id!==id)}
+root.CAAgenda={ensure,validate,save,remove,end,minutes,addCustomer,contactLinks};
 })(globalThis);
