@@ -119,6 +119,25 @@ public class MainActivity extends Activity {
                     WebResourceRequest request
             ) {
                 String url = request.getUrl().toString();
+                Uri destination = request.getUrl();
+                boolean callLink = "tel".equals(destination.getScheme())
+                        && destination.getSchemeSpecificPart().matches("\\+?[0-9]{7,15}");
+                boolean whatsappLink = "https".equals(destination.getScheme())
+                        && "wa.me".equals(destination.getHost())
+                        && destination.getPath() != null
+                        && destination.getPath().matches("/[0-9]{7,15}")
+                        && destination.getQuery() == null;
+                if (request.isForMainFrame() && request.hasGesture() && (callLink || whatsappLink)) {
+                    try {
+                        startActivity(new Intent(callLink ? Intent.ACTION_DIAL : Intent.ACTION_VIEW, destination));
+                    } catch (android.content.ActivityNotFoundException e) {
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setMessage(callLink ? "No se encontró una aplicación para llamar." : "No se pudo abrir WhatsApp o el navegador.")
+                            .setPositiveButton("Aceptar", null).show();
+                    }
+                    return true;
+                }
+
                 if (request.isForMainFrame() && (url.equals("mailto:raulito-sp@hotmail.com") || url.startsWith("mailto:raulito-sp@hotmail.com?"))) {
                     try {
                         startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse(url)));
