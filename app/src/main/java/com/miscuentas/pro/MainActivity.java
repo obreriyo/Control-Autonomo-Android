@@ -28,6 +28,7 @@ public class MainActivity extends Activity {
     private String legacy = "{}";
     private ValueCallback<Uri[]> upload;
     private byte[] pendingFile;
+    private String pendingFileName;
     private int bottomInsetCssPx = 0;
 
     @Override protected void onCreate(Bundle state) {
@@ -358,10 +359,12 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 if (!HOME.equals(webView.getUrl())
                         || pendingFile != null) {
+                    notifyFileSaved(false, name);
                     return;
                 }
 
                 try {
+                    pendingFileName = name;
                     pendingFile =
                             Base64.decode(
                                     base64,
@@ -400,7 +403,12 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void notifyFileSaved(boolean saved, String name) {
+        webView.evaluateJavascript("window.CABackups && window.CABackups.nativeSaved(" + saved + "," + org.json.JSONObject.quote(name == null ? "" : name) + ");", null);
+    }
+
     private void fileError() {
+        notifyFileSaved(false, pendingFileName);
         new AlertDialog.Builder(this)
                 .setMessage(
                         "No se pudo guardar el archivo. Vuelve a intentarlo."
@@ -430,6 +438,7 @@ public class MainActivity extends Activity {
         }
 
         if (request == 43) {
+            boolean saved = false;
             if (result == RESULT_OK
                     && intent != null
                     && intent.getData() != null
@@ -442,14 +451,20 @@ public class MainActivity extends Activity {
                                                 intent.getData()
                                         )
                 ) {
+                    if (out == null) throw new java.io.IOException("No se pudo abrir el destino");
                     out.write(pendingFile);
+                    out.flush();
 
+                    saved = true;
                 } catch (Exception e) {
+                    saved = false;
                     fileError();
                 }
             }
 
             pendingFile = null;
+            notifyFileSaved(saved, pendingFileName);
+            pendingFileName = null;
         }
     }
 

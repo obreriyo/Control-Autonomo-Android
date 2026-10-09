@@ -1,12 +1,14 @@
 const MONTHS=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const KEY="control_autonomo_web_v1";
+const escapeText=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function irpfRate(){return Number.isFinite(data.settings.irpf)?data.settings.irpf:20}
 let data=CAStore.open(null);
 data.movements=data.movements||[];data.bank=data.bank||[];data.settings=data.settings||{owner:"",irpf:20};data.nonworking=data.nonworking||[];data.gestIncome=data.gestIncome||{};
 data.movements.forEach(m=>{if(m.gestoria==null)m.gestoria=false;if(m.type==="Gasto"){if(m.category==null)m.category="otros";if(m.irpfDeductible==null)m.irpfDeductible=true;if(m.vatDeductible==null)m.vatDeductible=true}});
 const eur=n=>Number(n||0).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 function save(){try{CAStore.save(data);render();if(window.scheduleSync)scheduleSync()}catch(e){alert('No se pudo guardar: '+e.message+'. Exporta una copia antes de cerrar.');throw e}}
 function currentYear(){return +document.getElementById("year").value}
-let handlingAndroidBack=false;
+let handlingAndroidBack=false;let pageTrail=[];
 function activatePage(id,b){
  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
  document.getElementById(id).classList.add("active");
@@ -15,6 +17,9 @@ function activatePage(id,b){
  render();updateFabForPage();window.scrollTo(0,0);
 }
 function show(id,b){
+ const previous=document.querySelector(".page.active")?.id||"home";
+ if(!handlingAndroidBack&&previous!==id){if(id==="home")pageTrail=[];else pageTrail.push(previous)}
+ if(previous==="moves"&&id!=="moves")window.CAWorkCalendarUI?.leaveDays();
  activatePage(id,b);
  if(!handlingAndroidBack && history.state?.page!==id) history.pushState({ca:true,page:id},"",location.href);
 }
@@ -37,16 +42,16 @@ function paymentSummaryHTML(movements,title='Cobrado por forma de pago'){
  return `<h3>${title}</h3><table class="reportTable"><tr><th>Forma de cobro</th><th>Importe (IVA incluido)</th></tr>${Object.entries(CAPayments.labels).map(([key,label])=>`<tr><td>${label}</td><td>${eur(totals[key])}</td></tr>`).join('')}<tr><th>Total cobrado</th><th>${eur(totals.total)}</th></tr></table>${totals.unspecifiedCount?'<p class="small">Los ingresos sin forma de cobro se muestran como Sin especificar. Puedes clasificarlos en Movimientos.</p>':''}`;
 }
 function selectedIncome(y,m){return data.movements.filter(x=>x.type==='Ingreso'&&Number(x.date.slice(0,4))===y&&(m==null||Number(x.date.slice(5,7))===m))}
-function reportedIncome(y,m){return selectedIncome(y,m).filter(x=>!data.nonworking.includes(x.date))}
+function reportedIncome(y,m){return selectedIncome(y,m)}
 function setPaymentMethod(id,value){
  if(!Object.hasOwn(CAPayments.labels,value))return;
- const movement=data.movements.find(x=>x.id===id&&x.type==='Ingreso');if(!movement)return;
+ const movement=data.movements.find(x=>x.id===id&&x.type==='Ingreso');if(!movement)return;if(movement.tpvSaleId||movement.receivableId)return alert('Gestiona este cobro desde su sección de origen.');
  const previous=movement.paymentMethod;movement.paymentMethod=value;
  try{save();const month=Number(movement.date.slice(5,7));if(document.getElementById('moves').classList.contains('active'))renderMonth(month);buildMonthlyReport()}catch(e){if(previous==null)delete movement.paymentMethod;else movement.paymentMethod=previous;render()}
 }
 function movementHTML(m){
  let cat=m.type==="Gasto"?categoryName(m.category):"";
- return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${m.concept||m.type}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%${m.type==="Ingreso"?` · ${CAPayments.labels[CAPayments.method(m)]}`:""}</div>${m.type==="Ingreso"?`<label class="small" for="payment-${m.id}">Forma de cobro</label><select id="payment-${m.id}" aria-label="Forma de cobro del ingreso ${m.id}" onchange="setPaymentMethod(${m.id},this.value)" style="font-size:14px;padding:8px;margin:4px 0">${Object.entries(CAPayments.labels).map(([key,label])=>`<option value="${key}" ${CAPayments.method(m)===key?'selected':''}>${label}</option>`).join('')}</select>`:''}<div class="actions"><button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${m.type==="Ingreso"?"green":"red"}">${m.type==="Ingreso"?"+":"-"}${eur(m.total)}</div></div>`}
+ return `<div class="movement"><div class="ico">${m.type==="Ingreso"?"↓":"↑"}</div><div><div class="mname">${escapeText(m.concept||m.type)}</div><div class="sub">${m.date}${cat?` · ${cat}`:""} · IVA ${m.vat||0}%${m.type==="Ingreso"?` · ${CAPayments.labels[CAPayments.method(m)]}`:""}</div>${m.type==="Ingreso"&&!m.tpvSaleId&&!m.receivableId?`<label class="small" for="payment-${m.id}">Forma de cobro</label><select id="payment-${m.id}" aria-label="Forma de cobro del ingreso ${m.id}" onchange="setPaymentMethod(${m.id},this.value)" style="font-size:14px;padding:8px;margin:4px 0">${Object.entries(CAPayments.labels).map(([key,label])=>`<option value="${key}" ${CAPayments.method(m)===key?'selected':''}>${label}</option>`).join('')}</select>`:''}<div class="actions">${!m.tpvSaleId&&!m.receivableId&&!m.payrollId?`<button class="tiny" onclick="editMovement(${m.id})">Editar</button>`:''}<button class="tiny danger" onclick="deleteMove(${m.id})">Borrar</button></div></div><div class="amt ${(m.type==="Ingreso"?m.total:-m.total)>=0?"green":"red"}">${(m.type==="Ingreso"?m.total:-m.total)>=0?"+":"−"}${eur(Math.abs(m.total))}</div></div>`}
 
 function deleteMove(id){if(data.movements.find(x=>x.id==id)?.tpvSaleId)return alert("Gestiona esta venta desde TPV → Historial.");if(data.movements.find(x=>x.id==id)?.receivableId)return alert("Gestiona este ingreso desde Cobros pendientes para mantener su vínculo.");if(data.movements.find(x=>x.id==id)?.payrollId)return alert("Gestiona este coste desde Empleados para evitar inconsistencias.");if(confirm("¿Borrar este movimiento?")){data.movements=data.movements.filter(x=>x.id!=id);save()}}
 const CATEGORY_NAMES={material:"Compras / materiales",gestoria:"Gestoría / servicios profesionales",autonomos:"Cuota de autónomos (RETA)",suministros:"Suministros",alquiler:"Alquiler",seguros:"Seguros",transporte:"Vehículo / transporte",formacion:"Formación",otros:"Otros gastos"};
@@ -65,20 +70,23 @@ const EXPENSE_PRESETS={
 };
 function applyExpenseCategory(){let p=EXPENSE_PRESETS[expenseCategory.value]||EXPENSE_PRESETS.otros;vat.disabled=false;vat.value=p.vat;irpfDeductible.checked=p.irpf;vatDeductible.checked=p.vatDed;vat.disabled=!!p.lockVat;fiscalHint.textContent=p.hint}
 function dateForSelectedYear(){let now=new Date(),y=currentYear(),m=now.getMonth()+1,d=now.getDate(),last=new Date(y,m,0).getDate();d=Math.min(d,last);return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`}
-function openAdd(){date.value=dateForSelectedYear();type.value="Ingreso";document.getElementById("paymentMethod").value="";vat.value=21;withholding.value=0;syncMovementForm();dlg.showModal()}
+function openAdd(){document.getElementById("movementEditId").value="";document.getElementById("movementTitle").textContent="Nuevo movimiento";concept.value="";total.value="";date.value=dateForSelectedYear();type.value="Ingreso";document.getElementById("paymentMethod").value="";vat.value=21;withholding.value=0;syncMovementForm();dlg.showModal()}
 type.addEventListener("change",syncMovementForm);
-function addMovement(){let n=parseFloat(total.value.replace(",","."));if(!date.value||!n)return alert("Indica fecha e importe.");if(type.value==="Ingreso"&&data.nonworking.includes(date.value))return alert("Este día está marcado como no trabajado. No puedes registrar ingresos en esta fecha.");const paymentMethod=document.getElementById("paymentMethod").value;if(type.value==="Ingreso"&&!["cash","card","transfer"].includes(paymentMethod))return alert("Elige cómo has cobrado: efectivo, tarjeta o transferencia.");let isExpense=type.value==="Gasto",c=isExpense?expenseCategory.value:null,v=+vat.value||0;if(c==="autonomos")v=0;data.movements.push({id:Date.now(),type:type.value,date:date.value,concept:concept.value,total:n,vat:v,withholding:+withholding.value||0,gestoria:false,...(!isExpense?{paymentMethod}:{}),category:c,irpfDeductible:isExpense?irpfDeductible.checked:false,vatDeductible:isExpense?vatDeductible.checked:false});concept.value="";total.value="";dlg.close();save()}
-function renderMonth(m){
- show("moves",document.querySelectorAll(".nav button")[1]);let y=currentYear(),arr=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).sort((a,b)=>b.date.localeCompare(a.date));
+function editMovement(id){const m=data.movements.find(x=>x.id===id);if(!m)return;if(m.tpvSaleId||m.receivableId||m.payrollId)return alert('Este registro se modifica desde su sección de origen.');openAdd();document.getElementById('movementEditId').value=m.id;document.getElementById('movementTitle').textContent='Editar movimiento';type.value=m.type;syncMovementForm();date.value=m.date;concept.value=m.concept;total.value=m.total;vat.disabled=false;vat.value=m.vat;withholding.value=m.withholding??0;document.getElementById('paymentMethod').value=m.paymentMethod??'unspecified';if(m.type==='Gasto'){expenseCategory.value=m.category||'otros';irpfDeductible.checked=m.irpfDeductible!==false;vatDeductible.checked=m.vatDeductible!==false}}
+function addMovement(){const editId=Number(document.getElementById('movementEditId').value),old=editId?data.movements.find(x=>x.id===editId):null;if(editId&&(!old||old.tpvSaleId||old.receivableId||old.payrollId))return alert('El movimiento ya no admite edición.');const n=Number(String(total.value).trim().replace(',','.')),v=Number(vat.value),ret=Number(withholding.value),isExpense=type.value==='Gasto',method=document.getElementById('paymentMethod').value;if(!CATPV.validDate(date.value)||!Number.isFinite(n)||n===0||!Number.isFinite(v)||v<0||v>100||!Number.isFinite(ret)||ret<0||ret>100)return alert('Revisa fecha, importe, IVA y retención.');if(!isExpense&&!['cash','card','transfer'].includes(method)&&!(old?.paymentMethod==null&&method==='unspecified'))return alert('Elige cómo has cobrado: efectivo, tarjeta o transferencia.');const c=isExpense?expenseCategory.value:null,entry={id:old?.id||Date.now(),type:type.value,date:date.value,concept:concept.value.trim(),total:n,vat:c==='autonomos'?0:v,withholding:ret,gestoria:old?.gestoria??false,...(!isExpense?{paymentMethod:method}:{}),category:c,irpfDeductible:isExpense?irpfDeductible.checked:false,vatDeductible:isExpense?vatDeductible.checked:false};if(old&&!confirm('¿Guardar los cambios de este movimiento?'))return;try{const next=structuredClone(data);if(old)next.movements[next.movements.findIndex(x=>x.id===editId)]=entry;else{while(next.movements.some(x=>x.id===entry.id))entry.id++;next.movements.push(entry)}CAStore.validate(next);CAStore.save(next);data=next;dlg.close();render();if(window.scheduleSync)scheduleSync();if(document.getElementById('moves').classList.contains('active'))renderMonth(Number(entry.date.slice(5,7)));concept.value='';total.value='';document.getElementById('movementEditId').value=''}catch(e){alert('No se pudo guardar: '+e.message)}}
+function renderMonth(m,preserveScroll=false){
+ const scrollX=window.scrollX,scrollY=window.scrollY;
+ if(!preserveScroll)show("moves",document.querySelectorAll(".nav button")[1]);let y=currentYear(),arr=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).sort((a,b)=>b.date.localeCompare(a.date));
  let days=new Date(y,m,0).getDate(),nw=data.nonworking.filter(d=>d.startsWith(`${y}-${String(m).padStart(2,"0")}`)).length;
  let first=(new Date(y,m-1,1).getDay()+6)%7;
  let weekdays=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
- let calendar=weekdays.map(x=>`<div class="weekday">${x}</div>`).join("")+Array.from({length:first},()=>'<div class="empty"></div>').join("")+Array.from({length:days},(_,i)=>{let d=`${y}-${String(m).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`,off=data.nonworking.includes(d);return `<button onclick="toggleDay('${d}')" style="${off?'background:#ffe9eb;color:#d94d55;text-decoration:line-through;border:1px solid #f3b8bd':'border:1px solid transparent'}">${i+1}${off?' ✕':''}</button>`}).join("");
+ let calendar=weekdays.map(x=>`<div class="weekday">${x}</div>`).join("")+Array.from({length:first},()=>'<div class="empty"></div>').join("")+Array.from({length:days},(_,i)=>{let d=`${y}-${String(m).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`,off=data.nonworking.includes(d)||(data.tpv?.workCalendar?.enabled&&data.tpv.workCalendar.closedDates.includes(d));return `<button onclick="toggleDay('${d}')" style="${off?'background:#ffe9eb;color:#d94d55;text-decoration:line-through;border:1px solid #f3b8bd':'border:1px solid transparent'}">${i+1}${off?' ✕':''}</button>`}).join("");
  monthList.innerHTML=`<div class="section">${MONTHS[m-1]} ${y}</div><div class="panel"><b>Calendario laboral</b><p class="small">Pulsa directamente sobre cualquier día para marcarlo como no trabajado. Vuelve a pulsarlo para recuperarlo.</p><div class="small" style="margin-bottom:10px"><span class="badge">✓ Trabajado</span> <span class="badge" style="background:#ffe9eb;color:#d94d55">✕ No trabajado (${nw})</span></div><div class="workcalendar">${calendar}</div></div>`+(arr.map(movementHTML).join("")||'<div class="panel small">Sin movimientos este mes.</div>')
+ if(preserveScroll){window.scrollTo(scrollX,scrollY);requestAnimationFrame(()=>{if(document.querySelector(".page.active")?.id==="moves")window.scrollTo(scrollX,scrollY)})}
 }
-function toggleDay(d){let i=data.nonworking.indexOf(d);if(i>=0){data.nonworking.splice(i,1)}else{let existing=data.movements.filter(x=>x.type==="Ingreso"&&x.date===d);if(existing.length){alert(`No puedes marcar este día como no trabajado porque tiene ${existing.length} ingreso${existing.length>1?"s":""} registrado${existing.length>1?"s":""}. Borra o cambia primero esos ingresos.`);return}data.nonworking.push(d)}save();renderMonth(+d.slice(5,7))}
+function toggleDay(d){let i=data.nonworking.indexOf(d),c=data.tpv?.workCalendar,legacy=c?.enabled&&c.closedDates.includes(d);if(i>=0||legacy){if(i>=0)data.nonworking.splice(i,1);if(c)c.closedDates=c.closedDates.filter(x=>x!==d)}else{let existing=data.movements.filter(x=>x.type==="Ingreso"&&x.date===d);if(existing.length){alert(`No puedes marcar este día como no trabajado porque tiene ${existing.length} ingreso${existing.length>1?"s":""} registrado${existing.length>1?"s":""}. Borra o cambia primero esos ingresos.`);return}data.nonworking.push(d)}save();renderMonth(+d.slice(5,7),true)}
 function renderQuarters(){
- let y=currentYear(),p=+data.settings.irpf||20,out="";
+ let y=currentYear(),p=irpfRate(),out="";
  for(let q=0;q<4;q++){
   let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&Math.floor((+x.date.slice(5,7)-1)/3)==q),ib=0,eb=0,iv=0,ev=0,ret=0;
   a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
@@ -87,7 +95,7 @@ function renderQuarters(){
  quarters.innerHTML=out}
 
 function monthlyBenefit(y,m){
- let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m),p=+data.settings.irpf||20,inc=0,gas=0,ib=0,eb=0,iv=0,ev=0,ret=0;
+ let a=data.movements.filter(x=>+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m),p=irpfRate(),inc=0,gas=0,ib=0,eb=0,iv=0,ev=0,ret=0;
  a.forEach(x=>{let v=vals(x);if(x.type==="Ingreso"){inc+=+x.total||0;ib+=v.base;iv+=v.vat;ret+=v.base*(+x.withholding||0)/100}else{gas+=+x.total||0;if(x.irpfDeductible!==false)eb+=v.base;if(x.vatDeductible!==false)ev+=v.vat}});
  let bruto=inc-gas,iva=Math.max(0,iv-ev),irpf=Math.max(0,(ib-eb)*p/100-ret),hacienda=iva+irpf;
  return{inc,gas,bruto,iva,irpf,hacienda,neto:bruto-hacienda}}
@@ -110,7 +118,7 @@ function renderCash(){
 
 function monthlyIncomeRows(){
  let y=currentYear(),m=+reportMonth.value,d={};
- data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m&&!data.nonworking.includes(x.date)).forEach(x=>{let v=vals(x),r=d[x.date]||(d[x.date]={date:x.date,total:0,base:0});r.total+=v.total;r.base+=v.base});
+ data.movements.filter(x=>x.type==="Ingreso"&&+x.date.slice(0,4)==y&&+x.date.slice(5,7)==m).forEach(x=>{let v=vals(x),r=d[x.date]||(d[x.date]={date:x.date,total:0,base:0});r.total+=v.total;r.base+=v.base});
  return Object.values(d).sort((a,b)=>a.date.localeCompare(b.date))}
 
 function buildMonthlyReport(){
@@ -118,7 +126,7 @@ function buildMonthlyReport(){
  let tt=0,tb=0;
  let rows=arr.map(x=>{tt+=x.total;tb+=x.base;return `<tr><td>${x.date.slice(8,10)}/${x.date.slice(5,7)}/${x.date.slice(0,4)}</td><td>${eur(x.total)}</td><td>${eur(x.base)}</td></tr>`}).join("");
  let totalRow=arr.length?`<tr><th>TOTAL MES</th><th>${eur(tt)}</th><th>${eur(tb)}</th></tr>`:"";
- document.getElementById("monthlyReport").innerHTML=`<h3>${data.settings.owner||"Nombre de empresa"}</h3><div class="small" style="margin:-6px 0 14px">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable"><tr><th>Fecha</th><th>Total (IVA incluido)</th><th>Base imponible</th></tr>${rows||'<tr><td colspan="3">Sin ingresos registrados</td></tr>'}${totalRow}</table>`+paymentSummaryHTML(reportedIncome(y,m));
+ document.getElementById("monthlyReport").innerHTML=`<h3>${escapeText(data.settings.owner||"Nombre de empresa")}</h3><div class="small" style="margin:-6px 0 14px">Registro de ingresos · ${MONTHS[m-1]} ${y}</div><table class="reportTable"><tr><th>Fecha</th><th>Total (IVA incluido)</th><th>Base imponible</th></tr>${rows||'<tr><td colspan="3">Sin ingresos registrados</td></tr>'}${totalRow}</table>`+paymentSummaryHTML(reportedIncome(y,m));
  const pa=document.getElementById("pdfActions");if(pa)pa.style.display="block";
 }
 function renderGestoria(){
@@ -199,7 +207,7 @@ function printMonthlyReport(){
   finally{if(preview)setTimeout(()=>preview.style.display="block",800)}
  },150);
 }
-function saveSettings(){data.settings.owner=owner.value.trim();data.settings.irpf=+irpf.value||20;save();alert("Guardado")}
+function saveSettings(){const rate=Number(irpf.value);if(!irpf.value.trim()||!Number.isFinite(rate)||rate<0||rate>100)return alert('Indica un IRPF entre 0 y 100 %.');try{const next=structuredClone(data);next.settings.owner=owner.value.trim();next.settings.irpf=rate;CAStore.save(next);data=next;render();if(window.scheduleSync)scheduleSync();alert('Guardado')}catch(e){alert('No se pudo guardar: '+e.message)}}
 async function exportData(){try{const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});await downloadFileCompat(blob,"control_autonomo_copia.json")}catch(e){console.error(e);alert("No se pudo exportar la copia en este dispositivo.")}}
 function importData(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{const imported=CAStore.validate(JSON.parse(r.result));if(!confirm("¿Sustituir los datos actuales por esta copia? Se conservará una copia de recuperación."))return;CAStore.backup(data,"antes_importar");data=imported;save();owner.value=data.settings?.owner||"";irpf.value=data.settings?.irpf??20;alert("Copia importada")}catch{alert("Archivo no válido")}};r.readAsText(f)}
 init();
@@ -218,11 +226,12 @@ function initAndroidBackNavigation(){
  window.addEventListener("popstate",()=>{
    const preview=document.getElementById("pdfPreviewOverlay");
    if(preview){preview.remove();history.pushState({ca:true,page:document.querySelector(".page.active")?.id||"home"},"",location.href);return}
-   const modal=document.querySelector("#collectDialog[open],#completeReportDialog[open],#tpvDetailDialog[open],#tpvPaymentDialog[open]");if(modal){modal.close();history.pushState({ca:true,page:document.querySelector(".page.active")?.id||"home"},"",location.href);return;}
+   const modal=document.querySelector("#dlg[open],#stockDialog[open],#manualSaleDialog[open],#collectDialog[open],#completeReportDialog[open],#tpvDetailDialog[open],#tpvPaymentDialog[open],#workCalendarDialog[open],#appointmentCalendarDialog[open]");if(modal){modal.close();history.pushState({ca:true,page:document.querySelector(".page.active")?.id||"home"},"",location.href);return;}
    const active=document.querySelector(".page.active")?.id||"home";
    if(active!=="home"){
-     handlingAndroidBack=true;activatePage("home");handlingAndroidBack=false;
-     history.pushState({ca:true,page:"home"},"",location.href);
+     const previous=pageTrail.pop()||"home";if(active==="moves")window.CAWorkCalendarUI?.leaveDays();
+     handlingAndroidBack=true;activatePage(previous);handlingAndroidBack=false;
+     history.pushState({ca:true,page:previous},"",location.href);
      return;
    }
    if(confirm("¿Quieres salir de Control Autónomo?")){
@@ -250,3 +259,4 @@ function updateFabForPage(){
 }
 document.addEventListener("click",()=>setTimeout(updateFabForPage,0));
 window.addEventListener("load",updateFabForPage);
+

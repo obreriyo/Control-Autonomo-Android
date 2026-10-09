@@ -5,7 +5,7 @@ const html=fs.readFileSync('app/src/main/assets/index.html','utf8');
 const context={console,Blob,TextEncoder,structuredClone,crypto:require('crypto').webcrypto,document:{getElementById:el,addEventListener(){},querySelector(){return {classList:{contains(){return false}}}}},localStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},window:{addEventListener(){}},navigator:{},setTimeout(){},confirm:()=>true,alert:message=>{throw Error(message)}};
 for(const match of html.matchAll(/id="([^"]+)"/g))context[match[1]]=el(match[1]);
 const ctx=vm.createContext(context);
-for(const name of ['store.js','payments.js'])vm.runInContext(fs.readFileSync('app/src/main/assets/'+name,'utf8'),ctx);
+for(const name of ['tpv-core.js','store.js','payments.js'])vm.runInContext(fs.readFileSync('app/src/main/assets/'+name,'utf8'),ctx);
 let source=fs.readFileSync('app/src/main/assets/app.js','utf8').replace('\ninit();','\n').replace('\ninitAndroidBackNavigation();','\n');
 vm.runInContext(source,ctx);el('year').value='2026';el('reportMonth').value='1';el('benefitMonth').value='1';
 const movement=(id,method,total,date='2026-01-01')=>({id,date,type:'Ingreso',concept:'Venta',total,vat:21,...(method?{paymentMethod:method}:{})});

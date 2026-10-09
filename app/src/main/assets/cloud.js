@@ -39,6 +39,8 @@ async function accountAction(action){
   $('authPassword').value='';
  }catch(e){$('authMessage').textContent=friendlyError(e)}finally{$('authControls').disabled=false}
 }
+function decodeCloud(payload){return typeof CASyncCodec==='object'?CASyncCodec.decode(payload):JSON.parse(payload)}
+function encodeCloud(d){return typeof CASyncCodec==='object'?CASyncCodec.encode(d):JSON.stringify(d)}
 function showConflict(remote){
  conflict=remote;$('conflictPanel').hidden=false;
  cloudStatus('Conflicto: móvil y PC tienen cambios. Elige qué copia conservar.');
@@ -48,15 +50,15 @@ async function resolveConflict(keepLocal){
  if(!confirm(keepLocal?'¿Sustituir la copia de la nube por esta copia local? Se guardará una copia de recuperación de la nube en este dispositivo.':'¿Usar la copia de la nube? Se guardará una copia de recuperación de tus cambios locales en este dispositivo.'))return;
  try{
   const remote=conflict;
-  CAStore.backup(keepLocal?CAStore.validate(JSON.parse(remote.payload)):data,keepLocal?'nube':'local');
-  CAStore.persist({...CAStore.envelope,revision:remote.revision,...(!keepLocal?{data:CAStore.validate(JSON.parse(remote.payload)),dirty:false,commitId:remote.commitId}:{dirty:true,commitId:crypto.randomUUID()})});
+  CAStore.backup(keepLocal?CAStore.validate(decodeCloud(remote.payload)):data,keepLocal?'nube':'local');
+  CAStore.persist({...CAStore.envelope,revision:remote.revision,...(!keepLocal?{data:CAStore.validate(decodeCloud(remote.payload)),dirty:false,commitId:remote.commitId}:{dirty:true,commitId:crypto.randomUUID()})});
   conflict=null;$('conflictPanel').hidden=true;refreshAccountData();await syncCloud(true);
  }catch(e){cloudStatus(friendlyError(e))}
 }
 async function syncCloud(force=false){
  if(!cloudUser||busy||!authReady||conflict)return;
  if(!navigator.onLine){cloudStatus('Sin conexión · copia local disponible');return}
- if($('dlg').open){cloudStatus('Sincronización pendiente hasta cerrar el movimiento');return}
+ if(document.querySelector('dialog[open]')?.open){cloudStatus('Sincronización pendiente hasta cerrar la ventana');return}
  if(!force&&!CAStore.envelope.dirty&&Date.now()-lastRead<60000)return;
  busy=true;$('signOut').disabled=true;let completed=false;
  const uid=cloudUser.uid,ref=db.doc('users/'+uid+'/state/main');
@@ -64,8 +66,8 @@ async function syncCloud(force=false){
  try{
   cloudStatus('Sincronizando…');
   if(before.dirty){
-   const payload=JSON.stringify(CAStore.validate(before.data));
-   if(new TextEncoder().encode(payload).length>850000)throw Error('La copia supera el límite de sincronización (850 KB). Exporta tus datos. Siguen guardados localmente.');
+   const payload=encodeCloud(CAStore.validate(before.data));
+   if(new TextEncoder().encode(payload).length>850000)throw Error('La copia sigue superando la capacidad de la nube después de comprimirla. Exporta tus datos; siguen guardados localmente.');
    const result=await db.runTransaction(async tx=>{
     const snapshot=await tx.get(ref),remote=snapshot.exists?snapshot.data():null;
     if(remote?.commitId===before.commitId)return {revision:remote.revision};
@@ -84,7 +86,7 @@ async function syncCloud(force=false){
    if(snapshot.exists){
     const remote=snapshot.data();
     if(CAStore.envelope.dirty){if(remote.revision!==before.revision)showConflict(remote);return}
-    const parsed=CAStore.validate(JSON.parse(remote.payload));
+    const parsed=CAStore.validate(decodeCloud(remote.payload));
     if(remote.revision!==before.revision){
      CAStore.persist({data:parsed,revision:remote.revision,dirty:false,commitId:remote.commitId});refreshAccountData();
     }
@@ -112,8 +114,11 @@ async function initCloud(){
   await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
   auth.onAuthStateChanged(user=>{
    clearTimeout(timer);cloudUser=user;conflict=null;lastRead=0;
-   $('conflictPanel').hidden=true;$('dlg').close();
-   try{CAStore.open(user?.uid||null);refreshAccountData()}catch(e){cloudStatus('No se pudo abrir la copia local: '+e.message);document.querySelector('.app').inert=true;return}
+   const nextUid=user?.uid||null;
+   if(CAStore.uid!==nextUid||!CAStore.envelope){
+    $('conflictPanel').hidden=true;$('dlg').close();for(const dialog of document.querySelectorAll?.('dialog[open]')||[])dialog.close();
+    try{CAStore.open(nextUid);refreshAccountData()}catch(e){cloudStatus('No se pudo abrir la copia local: '+e.message);document.querySelector('.app').inert=true;return}
+   }
    $('accountName').textContent=user?user.email:'Modo local';
    $('authForm').hidden=!!user;$('signedIn').hidden=!user;
    authReady=true;cloudStatus(user?'Copia local de tu cuenta preparada':'Sin cuenta · tus datos permanecen en este dispositivo');
@@ -124,5 +129,5 @@ async function initCloud(){
 window.addEventListener('online',()=>syncCloud(true));
 window.addEventListener('offline',()=>cloudStatus('Sin conexión · copia local disponible'));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncCloud()});
-$('dlg').addEventListener('close',()=>{if(CAStore.envelope.dirty)scheduleSync()});
+document.addEventListener('close',event=>{if(event.target.tagName==='DIALOG'&&cloudUser){if(CAStore.envelope.dirty)scheduleSync();else syncCloud()}},true);
 initCloud();
