@@ -31,8 +31,25 @@ jobs:
           echo 'ba6a6ab18f22b25865cbbf5d4aa312b707a474b09ff1361f2f6448ae7518bef9  /tmp/control-cert.der' | sha256sum --check
       - name: Instalar SDK
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"'
-      - name: Compilar
-        run: gradle :app:assembleDebug --stacktrace
+      - name: Forzar firma fija en Gradle
+        run: |
+          cat >> app/build.gradle <<'GRADLE'
+          android {
+              signingConfigs {
+                  controlFixed {
+                      storeFile new File(System.getenv('HOME'), '.android/debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  debug { signingConfig signingConfigs.controlFixed }
+              }
+          }
+          GRADLE
+      - name: Compilar con firma fija sin reutilizar APK
+        run: gradle --no-configuration-cache --no-build-cache --rerun-tasks :app:clean :app:assembleDebug --stacktrace
       - name: Verificar firma del APK
         run: |
           set -euo pipefail
