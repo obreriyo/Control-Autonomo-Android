@@ -8,8 +8,8 @@ android {
         applicationId 'com.obreriyo.controlautonomo'
         minSdk 24
         targetSdk 35
-        versionCode 38
-        versionName '1.7.3'
+        versionCode 39
+        versionName '1.7.4'
     }
 }
 
@@ -35,4 +35,27 @@ android {
             debuggable false
         }
     }
+}
+
+// Every debug update uses the same private key restored by GitHub Actions.
+def fixedStore = new File(System.getenv('HOME'), '.android/debug.keystore')
+if (System.getenv('CI') == 'true') {
+    if (!fixedStore.isFile()) throw new GradleException('Falta la firma fija. Configura ANDROID_DEBUG_KEYSTORE_BASE64.')
+    def ks = java.security.KeyStore.getInstance('JKS')
+    fixedStore.withInputStream { ks.load(it, 'android'.toCharArray()) }
+    def certificate = ks.getCertificate('androiddebugkey')
+    def digest = certificate == null ? '' : java.security.MessageDigest.getInstance('SHA-256').digest(certificate.encoded).encodeHex().toString()
+    if (digest != 'ba6a6ab18f22b25865cbbf5d4aa312b707a474b09ff1361f2f6448ae7518bef9')
+        throw new GradleException('La firma no coincide con la firma fija de Control Autónomo.')
+}
+android {
+    signingConfigs {
+        controlFixed {
+            storeFile fixedStore
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes { debug { signingConfig signingConfigs.controlFixed } }
 }

@@ -51,10 +51,20 @@
  };
  root.CAStore=api;
  if(root.navigator?.locks?.request){
-  api.writable=false;
-  root.navigator.locks.request('control-autonomo-editor',{mode:'exclusive',ifAvailable:true},async lock=>{
-   if(!lock){const warn=()=>{const el=root.document?.getElementById('syncStatus');if(el)el.textContent='Otra ventana tiene abierta la app. Cierra esa ventana y vuelve a abrir esta para guardar.'};if(root.document?.readyState==='loading')root.document.addEventListener('DOMContentLoaded',warn,{once:true});else warn();return}
-   api.writable=true;await new Promise(resolve=>root.addEventListener('pagehide',()=>{api.writable=false;resolve()},{once:true}));
-  }).catch(()=>{api.writable=false});
+  let epoch=0,release=null,visible=true,pending=Promise.resolve();
+  const warn=()=>{const el=root.document?.getElementById('syncStatus');if(el)el.textContent='Otra ventana tiene abierta la app. Cierra esa ventana y vuelve a abrir esta para guardar.'};
+  function acquire(){
+   const current=++epoch;api.writable=false;
+   pending=root.navigator.locks.request('control-autonomo-editor',{mode:'exclusive',ifAvailable:true},async lock=>{
+    if(current!==epoch||!visible)return;
+    if(!lock){if(root.document?.readyState==='loading')root.document.addEventListener('DOMContentLoaded',warn,{once:true});else warn();return}
+    api.writable=true;
+    // persist still compares storageVersion, so returning never overwrites another editor's changes.
+    await new Promise(resolve=>{release=resolve});
+   }).catch(()=>{if(current===epoch)api.writable=false});
+  }
+  root.addEventListener('pagehide',()=>{visible=false;++epoch;api.writable=false;const done=release;release=null;if(done)done()});
+  root.addEventListener('pageshow',event=>{if(event.persisted){visible=true;const current=epoch;pending.finally(()=>{if(visible&&epoch===current)acquire()})}});
+  acquire();
  }
 })(globalThis);
