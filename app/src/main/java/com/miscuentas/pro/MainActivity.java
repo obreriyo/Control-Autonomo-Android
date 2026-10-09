@@ -481,7 +481,7 @@ public class MainActivity extends Activity {
 
                     if (!"\"home\"".equals(value)) {
                         webView.evaluateJavascript(
-                                "handlingAndroidBack=true;activatePage('home');handlingAndroidBack=false;",
+                                "returnToPreviousPage();",
                                 null
                         );
                         return;

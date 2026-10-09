@@ -7,6 +7,7 @@ data.movements=data.movements||[];data.bank=data.bank||[];data.settings=data.set
 data.movements.forEach(m=>{if(m.gestoria==null)m.gestoria=false;if(m.type==="Gasto"){if(m.category==null)m.category="otros";if(m.irpfDeductible==null)m.irpfDeductible=true;if(m.vatDeductible==null)m.vatDeductible=true}});
 const eur=n=>Number(n||0).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 function save(){try{CAStore.save(data);render();if(window.scheduleSync)scheduleSync()}catch(e){alert('No se pudo guardar: '+e.message+'. Exporta una copia antes de cerrar.');throw e}}
+function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function currentYear(){return +document.getElementById("year").value}
 let handlingAndroidBack=false;let pageTrail=[];
 function activatePage(id,b){
@@ -26,7 +27,7 @@ function show(id,b){
 function init(){
  let y=new Date().getFullYear(), sel=document.getElementById("year"),years=[...data.movements.map(x=>+String(x.date).slice(0,4)),...data.bank.map(x=>+String(x.date).slice(0,4))].filter(Number.isFinite),min=Math.min(y-10,...years),max=Math.max(y+20,...years);for(let n=min;n<=max;n++)sel.add(new Option(n,n));sel.value=y;sel.onchange=render;
  owner.value=data.settings.owner||"";irpf.value=data.settings.irpf??20;
- date.value=new Date().toISOString().slice(0,10);bankDate.value=date.value;
+ date.value=localToday();bankDate.value=date.value;
  months.innerHTML=MONTHS.map((m,i)=>`<button onclick="renderMonth(${i+1})">${m}</button>`).join("");
  [reportMonth,gestMonth,benefitMonth].forEach(sel=>{sel.innerHTML=MONTHS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("");sel.value=new Date().getMonth()+1});render()
 }
@@ -84,7 +85,7 @@ function renderMonth(m,preserveScroll=false){
  monthList.innerHTML=`<div class="section">${MONTHS[m-1]} ${y}</div><div class="panel"><b>Calendario laboral</b><p class="small">Pulsa directamente sobre cualquier día para marcarlo como no trabajado. Vuelve a pulsarlo para recuperarlo.</p><div class="small" style="margin-bottom:10px"><span class="badge">✓ Trabajado</span> <span class="badge" style="background:#ffe9eb;color:#d94d55">✕ No trabajado (${nw})</span></div><div class="workcalendar">${calendar}</div></div>`+(arr.map(movementHTML).join("")||'<div class="panel small">Sin movimientos este mes.</div>')
  if(preserveScroll){window.scrollTo(scrollX,scrollY);requestAnimationFrame(()=>{if(document.querySelector(".page.active")?.id==="moves")window.scrollTo(scrollX,scrollY)})}
 }
-function toggleDay(d){let i=data.nonworking.indexOf(d),c=data.tpv?.workCalendar,legacy=c?.enabled&&c.closedDates.includes(d);if(i>=0||legacy){if(i>=0)data.nonworking.splice(i,1);if(c)c.closedDates=c.closedDates.filter(x=>x!==d)}else{let existing=data.movements.filter(x=>x.type==="Ingreso"&&x.date===d);if(existing.length){alert(`No puedes marcar este día como no trabajado porque tiene ${existing.length} ingreso${existing.length>1?"s":""} registrado${existing.length>1?"s":""}. Borra o cambia primero esos ingresos.`);return}data.nonworking.push(d)}save();renderMonth(+d.slice(5,7),true)}
+function toggleDay(d){let i=data.nonworking.indexOf(d),c=data.tpv?.workCalendar,legacy=c?.enabled&&c.closedDates.includes(d);if(i>=0||legacy){if(i>=0)data.nonworking.splice(i,1);if(c)c.closedDates=c.closedDates.filter(x=>x!==d)}else{data.nonworking.push(d)}save();renderMonth(+d.slice(5,7),true)}
 function renderQuarters(){
  let y=currentYear(),p=irpfRate(),out="";
  for(let q=0;q<4;q++){
@@ -220,6 +221,7 @@ window.addEventListener("load",()=>{if(localStorage.getItem("ca_pin_hash"))lockS
 
 // Integración con el botón/gesto Atrás de Android.
 // Conserva una entrada de historial dentro de la app para poder preguntar antes de cerrarla.
+function returnToPreviousPage(){const active=document.querySelector('.page.active')?.id||'home';if(active==='home')return false;const previous=pageTrail.pop()||'home';if(active==='moves')window.CAWorkCalendarUI?.leaveDays();handlingAndroidBack=true;activatePage(previous);handlingAndroidBack=false;return true}
 function initAndroidBackNavigation(){
  history.replaceState({ca:true,page:"exit"},"",location.href);
  history.pushState({ca:true,page:"home"},"",location.href);
