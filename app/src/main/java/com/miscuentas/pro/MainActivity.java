@@ -127,7 +127,7 @@ public class MainActivity extends Activity {
                         && "wa.me".equals(destination.getHost())
                         && destination.getPath() != null
                         && destination.getPath().matches("/[0-9]{7,15}")
-                        && destination.getQuery() == null;
+                        && (destination.getQuery() == null || (destination.getQueryParameterNames().size() == 1 && destination.getQueryParameterNames().contains("text")));
                 if (request.isForMainFrame() && request.hasGesture() && (callLink || whatsappLink)) {
                     try {
                         startActivity(new Intent(callLink ? Intent.ACTION_DIAL : Intent.ACTION_VIEW, destination));
@@ -234,9 +234,12 @@ public class MainActivity extends Activity {
 
                 upload = callback;
 
+                String[] accepted = params.getAcceptTypes();
+                boolean images = false;
+                for (String type : accepted) if (type != null && type.startsWith("image/")) images = true;
                 Intent intent =
                         new Intent(Intent.ACTION_GET_CONTENT)
-                                .setType("application/json")
+                                .setType(images ? "image/*" : "application/json")
                                 .addCategory(
                                         Intent.CATEGORY_OPENABLE
                                 );
@@ -277,6 +280,7 @@ public class MainActivity extends Activity {
             }
         });
 
+        webView.addJavascriptInterface(new ContactBridge(), "AndroidContacts");
         webView.addJavascriptInterface(
                 new PrintBridge(),
                 "AndroidPrint"
@@ -312,6 +316,21 @@ public class MainActivity extends Activity {
                         (d, w) -> finish()
                 )
                 .show();
+    }
+
+    private class ContactBridge {
+        @JavascriptInterface
+        public void openWhatsApp(String phone, String message) {
+            runOnUiThread(() -> {
+                if (!HOME.equals(webView.getUrl()) || phone == null || !phone.matches("[0-9]{7,15}") || message == null || message.length() > 4000) return;
+                Uri destination = new Uri.Builder().scheme("https").authority("wa.me").appendPath(phone).appendQueryParameter("text", message).build();
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, destination));
+                } catch (android.content.ActivityNotFoundException e) {
+                    new AlertDialog.Builder(MainActivity.this).setMessage("No se pudo abrir WhatsApp o el navegador.").setPositiveButton("Aceptar", null).show();
+                }
+            });
+        }
     }
 
     private class PrintBridge {

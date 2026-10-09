@@ -11,6 +11,10 @@ function refreshAccountData(){
  $('pdfActions').style.display='none';$('pdfPreviewOverlay')?.remove();
  render();
 }
+function deferDraftSync(){
+ cloudStatus('Sincronización pendiente: guarda los formularios o descártalos para recibir cambios de la nube.');
+ const button=document.createElement('button');button.className='secondary';button.textContent='Descartar formularios sin guardar';button.onclick=()=>{if(!confirm('¿Descartar los formularios y el carrito sin guardar? Los registros ya guardados se conservan.'))return;globalThis.CABackups?.resetSnapshot();render();syncCloud(true)};$('syncStatus').append(button);
+}
 function scheduleSync(){clearTimeout(timer);cloudStatus(cloudUser?'Guardado en este dispositivo · pendiente de sincronizar':'Guardado solo en este dispositivo');timer=setTimeout(()=>syncCloud(),3000)}
 function friendlyError(e){
  const code=e.code||'';
@@ -59,6 +63,7 @@ async function resolveConflict(keepLocal){
 async function syncCloud(force=false){
  if(!cloudUser||busy||!authReady||conflict)return;
  if(!navigator.onLine){cloudStatus('Sin conexión · copia local disponible');return}
+ if(globalThis.CAFormState?.hasDraft?.()){deferDraftSync();return}
  if(document.querySelector('dialog[open]')?.open){cloudStatus('Sincronización pendiente hasta cerrar la ventana');return}
  if(!force&&!CAStore.envelope.dirty&&Date.now()-lastRead<60000)return;
  busy=true;$('signOut').disabled=true;let completed=false;
@@ -89,6 +94,7 @@ async function syncCloud(force=false){
     if(CAStore.envelope.dirty){if(remote.revision!==before.revision)showConflict(remote);return}
     const parsed=CAStore.validate(decodeCloud(remote.payload));
     if(remote.revision!==before.revision){
+     if(globalThis.CAFormState?.hasDraft?.()||document.querySelector('dialog[open]')?.open){deferDraftSync();return}
      CAStore.persist({data:parsed,revision:remote.revision,dirty:false,commitId:remote.commitId});refreshAccountData();
     }
    }else if(before.revision!==0)throw Error('La copia de la nube ya no existe. Exporta tu copia local antes de continuar.');
