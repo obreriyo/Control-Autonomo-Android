@@ -5,6 +5,7 @@ let auth,db,cloudUser=null,busy=false,timer,lastRead=0,conflict=null,authReady=f
 function cloudStatus(text){$('syncStatus').textContent=text}
 function refreshAccountData(){
  data=CAStore.validate(CAStore.envelope.data);
+ globalThis.CABackups?.resetSnapshot();
  owner.value=data.settings.owner;irpf.value=data.settings.irpf;
  for(const id of ['monthList','monthlyReport','gestoria'])$(id).innerHTML='';
  $('pdfActions').style.display='none';$('pdfPreviewOverlay')?.remove();
