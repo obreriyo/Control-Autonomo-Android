@@ -2,20 +2,29 @@ plugins { id 'com.android.application' }
 
 android {
     namespace 'com.obreriyo.controlautonomo'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.obreriyo.controlautonomo'
         minSdk 24
-        targetSdk 35
-        versionCode 39
-        versionName '1.7.4'
+        targetSdk 36
+        versionCode 40
+        versionName '1.8.0'
+    }
+    buildFeatures { buildConfig true }
+    buildTypes {
+        debug { buildConfigField 'boolean', 'PLAY_DISTRIBUTION', 'false' }
+        release { buildConfigField 'boolean', 'PLAY_DISTRIBUTION', 'true' }
     }
 }
 
 android { compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
 
-dependencies { implementation "androidx.webkit:webkit:1.12.1" }
+dependencies {
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+    implementation "androidx.webkit:webkit:1.12.1"
+    implementation "com.android.billingclient:billing:9.1.0"
+}
 
 // Upload-key credentials come from the build environment, never from git.
 android {
@@ -39,7 +48,7 @@ android {
 
 // Every debug update uses the same private key restored by GitHub Actions.
 def fixedStore = new File(System.getenv('HOME'), '.android/debug.keystore')
-if (System.getenv('CI') == 'true') {
+if (System.getenv('CI') == 'true' && gradle.startParameter.taskNames.any { it.toLowerCase().contains('debug') }) {
     if (!fixedStore.isFile()) throw new GradleException('Falta la firma fija. Configura ANDROID_DEBUG_KEYSTORE_BASE64.')
     def ks = java.security.KeyStore.getInstance('JKS')
     fixedStore.withInputStream { ks.load(it, 'android'.toCharArray()) }

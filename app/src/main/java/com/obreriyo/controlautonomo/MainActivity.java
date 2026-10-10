@@ -30,6 +30,7 @@ public class MainActivity extends Activity {
     private byte[] pendingFile;
     private String pendingFileName;
     private int bottomInsetCssPx = 0;
+    private PlayBilling billing;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -158,6 +159,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 applyBottomInsetToPage();
+                if (billing != null && HOME.equals(url)) billing.emit();
 
                 if (!migrating) return;
 
@@ -281,6 +283,8 @@ public class MainActivity extends Activity {
         });
 
         webView.addJavascriptInterface(new ContactBridge(), "AndroidContacts");
+        billing = new PlayBilling(this, webView);
+        webView.addJavascriptInterface(billing, "AndroidBilling");
         webView.addJavascriptInterface(
                 new PrintBridge(),
                 "AndroidPrint"
@@ -303,6 +307,16 @@ public class MainActivity extends Activity {
                         + "px');",
                 null
         );
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (billing != null) billing.resume();
+    }
+
+    @Override protected void onDestroy() {
+        if (billing != null) billing.destroy();
+        super.onDestroy();
     }
 
     private void migrationError() {

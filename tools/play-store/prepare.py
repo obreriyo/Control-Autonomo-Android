@@ -47,7 +47,7 @@ for ident,body in [('privacyDialog',privacy),('deleteAccountDialog',delete)]:
 s=s.replace('1.0.3','1.0.4');p.write_text(s)
 p=assets/'sw.js';p.write_text(p.read_text().replace('v1.0.3','v1.0.4'))
 
-p=root/'app/src/main/java/com/miscuentas/pro/MainActivity.java';s=p.read_text()
+p=root/'app/src/main/java/com/obreriyo/controlautonomo/MainActivity.java';s=p.read_text()
 marker='                String url = request.getUrl().toString();'
 if 'mailto:raulito-sp@hotmail.com' not in s:
     if marker not in s: raise SystemExit('No se encuentra la navegación de Android.')

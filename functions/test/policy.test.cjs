@@ -1,0 +1,14 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {subscription,accountHash,PRODUCT}=require('../policy.cjs');
+const now=Date.parse('2026-10-11T00:00:00Z');
+const receipt=(state='SUBSCRIPTION_STATE_ACTIVE',overrides={})=>({subscriptionState:state,externalAccountIdentifiers:{obfuscatedExternalAccountId:accountHash('user-a')},acknowledgementState:'ACKNOWLEDGEMENT_STATE_PENDING',lineItems:[{productId:PRODUCT,offerDetails:{basePlanId:'anual'},expiryTime:new Date(now+86400000).toISOString()}],...overrides});
+test('Verified active annual purchase grants Pro and requires acknowledgement',()=>assert.deepEqual(subscription(receipt(),'user-a',now),{pro:true,expiresAt:now+86400000,acknowledge:true}));
+test('Canceling auto renewal retains access until the paid expiry',()=>assert.equal(subscription(receipt('SUBSCRIPTION_STATE_CANCELED'),'user-a',now).pro,true));
+test('Grace period retains access',()=>assert.equal(subscription(receipt('SUBSCRIPTION_STATE_IN_GRACE_PERIOD'),'user-a',now).pro,true));
+for(const state of ['SUBSCRIPTION_STATE_PENDING','SUBSCRIPTION_STATE_ON_HOLD','SUBSCRIPTION_STATE_PAUSED','SUBSCRIPTION_STATE_EXPIRED','SUBSCRIPTION_STATE_PENDING_PURCHASE_CANCELED'])test(state+' never grants Pro',()=>assert.deepEqual(subscription(receipt(state),'user-a',now),{pro:false,expiresAt:0,acknowledge:false}));
+test('Expired receipt cannot grant or acknowledge',()=>assert.equal(subscription(receipt(),'user-a',now+86400001).pro,false));
+test('A different Firebase account cannot restore the purchase',()=>assert.throws(()=>subscription(receipt(),'user-b',now),e=>e.status===409));
+test('An unbound purchase cannot be adopted by any client',()=>assert.throws(()=>subscription(receipt('SUBSCRIPTION_STATE_ACTIVE',{externalAccountIdentifiers:{}}),'user-a',now),e=>e.status===409));
+test('Another product or base plan cannot unlock Pro',()=>{for(const line of [{productId:'other',offerDetails:{basePlanId:'anual'},expiryTime:new Date(now+86400000).toISOString()},{productId:PRODUCT,offerDetails:{basePlanId:'mensual'},expiryTime:new Date(now+86400000).toISOString()}])assert.equal(subscription(receipt('SUBSCRIPTION_STATE_ACTIVE',{lineItems:[line]}),'user-a',now).pro,false)});
+test('A processed purchase is not acknowledged again',()=>assert.equal(subscription(receipt('SUBSCRIPTION_STATE_ACTIVE',{acknowledgementState:'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED'}),'user-a',now).acknowledge,false));

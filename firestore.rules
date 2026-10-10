@@ -17,6 +17,9 @@ service cloud.firestore {
       allow update: if owner() && valid() && request.resource.data.revision == resource.data.revision + 1;
       allow delete, list: if false;
     }
+    match /proGrants/{uid} { allow read, write: if false; }
+    match /playAccounts/{uid} { allow read, write: if false; }
+    match /billingTokens/{key} { allow read, write: if false; }
     match /{document=**} { allow read, write: if false; }
   }
 }

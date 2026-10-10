@@ -1,4 +1,5 @@
 (function(root){'use strict';
+if(root.AndroidBilling?.isPlayBuild())return;
 const key='ca-preview-plan-1',free=()=>localStorage.getItem(key)==='free';
 function notice(){alert('Esta función pertenece a Pro. Puedes volver a la vista previa completa desde Mi cuenta. No hay pagos activados.');return false}
 function wrap(obj,names){if(!obj)return;for(const name of names){if(typeof obj[name]!=='function')continue;const original=obj[name];obj[name]=function(...args){if(free())return notice();return original.apply(this,args)}}}

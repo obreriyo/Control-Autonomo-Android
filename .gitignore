@@ -2,3 +2,12 @@
 *.jks
 
 *.keystore
+*.p12
+local.properties
+.gradle/
+**/build/
+node_modules/
+
+tmp/
+delivery/
+test-results/
