@@ -1,0 +1,20 @@
+CONTROL AUTONOMO PARA WINDOWS
+
+x64: Windows 10/11 Intel/AMD de 64 bits.
+ia32: Windows 10 de 32 bits.
+arm64: Windows 11 con ARM64, por ejemplo Snapdragon.
+Consulta Configuracion > Sistema > Acerca de > Tipo de sistema.
+Windows 7, 8 y 8.1 no estan admitidos.
+
+Incluye agenda, clientes, WhatsApp, TPV, stock, devoluciones, empleados,
+caja, ingresos/gastos, informes y copias de Android.
+La interfaz se adapta a la pantalla del ordenador.
+Pro sigue siendo de pruebas: las suscripciones no estan activadas.
+Con la misma cuenta de Control Autonomo puedes sincronizar con Android.
+Comprueba que ambos terminen de sincronizar. Invitado guarda solo localmente.
+WhatsApp abre el navegador con el mensaje; confirma el envio manualmente.
+Copias y documentos permiten elegir donde guardar el archivo.
+Las actualizaciones conservan los datos de tu usuario.
+Guarda una copia antes de cambiar de ordenador.
+Los instaladores no llevan certificado comercial de Windows; puede aparecer
+una advertencia de editor desconocido.

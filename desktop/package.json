@@ -1,0 +1,62 @@
+{
+  "name": "control-autonomo-windows",
+  "productName": "Control Autónomo",
+  "version": "1.7.4",
+  "description": "Agenda, clientes, TPV, stock e informes para Windows",
+  "author": "Obreriyo",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "prepare-assets": "node prepare.cjs",
+    "start": "electron .",
+    "test": "node tests/policy.cjs && node tests/adapter.cjs && node tests/protocol.cjs",
+    "test:desktop": "node tests/smoke.cjs",
+    "dist": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "43.7.9",
+    "electron-builder": "26.15.3",
+    "playwright": "1.58.2"
+  },
+  "build": {
+    "appId": "com.obreriyo.controlautonomo.windows",
+    "productName": "Control Autónomo",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "policy.cjs",
+      "assets/**/*",
+      "icon.ico",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "icon.ico",
+      "artifactName": "Control-Autonomo-Windows-${version}-${arch}-Instalar.exe",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Control Autónomo",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
